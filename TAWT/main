@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TAWT - Transition & Wellness Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
+      --accent: #34d399;
+      --accent-2: #60a5fa;
+      --danger: #f87171;
+      --warn: #fbbf24;
+      --border: #1f2937;
+      --chip: #334155;
+    }
+    * { box-sizing: border-box }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(1200px 1200px at -10% -10%, #172554 5%, transparent 40%),
+                  radial-gradient(1400px 1400px at 110% -10%, #1e293b 5%, transparent 40%),
+                  var(--bg);
+      color: var(--text);
+    }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(2,6,23,.7); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: .3px; }
+    nav { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    nav button {
+      all: unset; cursor: pointer; padding: 8px 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: #0b1220; color: var(--text);
+      font-weight: 600;
+    }
+    nav button.active { border-color: transparent; background: linear-gradient(135deg, #22c55e33, #3b82f633); }
+    main { padding: 16px; }
+    section { display: none; }
+    section.active { display: block; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); }
+    .card {
+      grid-column: span 12; background: linear-gradient(180deg, #0b1324, #0a1020);
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
+    }
+    @media (min-width: 760px) {
+      .span-6 { grid-column: span 6; }
+      .span-4 { grid-column: span 4; }
+      .span-8 { grid-column: span 8; }
+    }
+    .row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 10px; align-items: end; }
+    .field { grid-column: span 12; display: flex; flex-direction: column; gap: 6px; }
+    @media (min-width: 700px) { .field.span-4 { grid-column: span 4 } .field.span-3 { grid-column: span 3 } .field.span-6 { grid-column: span 6 } }
+    label { font-size: 12px; color: var(--muted); }
+    input, select, textarea {
+      background: #0b1220; color: var(--text); border: 1px solid var(--border);
+      padding: 10px 12px; border-radius: 8px; outline: none;
+    }
+    input[type="range"] { padding: 0 }
+    textarea { min-height: 80px; resize: vertical }
+    .hint { font-size: 12px; color: var(--muted) }
+    .btn {
+      all: unset; cursor: pointer; background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #021; padding: 10px 14px; border-radius: 10px; font-weight: 700; text-align: center;
+    }
+    .btn.secondary { background: linear-gradient(135deg, #60a5fa, #3b82f6); color: #021; }
+    .btn.ghost { background: #0b1220; color: var(--text); border: 1px solid var(--border); }
+    .btn.danger { background: linear-gradient(135deg, #f87171, #ef4444); color: #2b0b0b; }
+    .list { display: grid; gap: 8px; margin-top: 10px; }
+    .item {
+      display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+      background: #0b1220; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+    }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap }
+    .chip { background: var(--chip); color: #cbd5e1; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+    .stats { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+    .kpi { background: #0b1220; border: 1px solid var(--border); border-radius: 10px; padding: 12px }
+    .muted { color: var(--muted) }
+    .right { display: flex; gap: 8px; align-items: center }
+    canvas { width: 100%; height: 60px; }
+    .sr-only { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <header>#these are all the current tabs
+    <div class="wrap">
+      <h1>TAWT — Transition & Wellness Tracker</h1>
+      <nav id="tabs">
+        <button data-tab="track" class="active" aria-controls="track" aria-selected="true">Track</button>
+        <button data-tab="milestones" aria-controls="milestones">Milestones</button>
+        <button data-tab="reports" aria-controls="reports">Reports</button>
+        <button data-tab="settings" aria-controls="settings">Settings</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="track" class="active">
+      <div class="grid">
+        <div class="card span-8">
+          <h2 style="margin-top:0">Daily Wellness</h2>
+          <form id="entryForm">
+            <div class="row">
+              <div class="field span-3">
+                <label for="entryDate">Date</label>
+                <input id="entryDate" name="date" type="date" required />
+              </div>
+              <div class="field span-3">
+                <label for="mood">Mood (1-5)</label>
+                <input id="mood" name="mood" type="range" min="1" max="5" step="1" value="3" />
+                <div class="hint">Value: <span id="moodVal">3</span></div>
+              </div>
+              <div class="field span-3">
+                <label for="energy">Energy (1-5)</label>
+                <input id="energy" name="energy" type="range" min="1" max="5" step="1" value="3" />
+                <div class="hint">Value: <span id="energyVal">3</span></div>
+              </div>
+              <div class="field span-3">
+                <label for="sleep">Sleep (hrs)</label>
+                <input id="sleep" name="sleep" type="number" min="0" max="24" step="0.5" value="8" />
+              </div>
+              <div class="field span-6">
+                <label for="medsName">
+                  Medication/HRT <span class="muted">(optional)</span>
+                </label>
+                <div class="row" style="align-items:center">
+                  <div class="field span-3">
+                    <label class="sr-only" for="medsTaken">Taken?</label>
+                    <select id="medsTaken">
+                      <option value="">—</option>
+                      <option value="yes">Taken</option>
+                      <option value="no">Skipped</option>
+                    </select>
+                  </div>
+                  <div class="field span-3">
+                    <label class="sr-only" for="medsDose">Dose</label>
+                    <input id="medsDose" placeholder="Dose (e.g., 2mg)" />
+                  </div>
+                  <div class="field span-6">
+                    <label class="sr-only" for="medsName">Name</label>
+                    <input id="medsName" placeholder="Name (e.g., Estradiol)" />
+                  </div>
+                </div>
+              </div>
+              <div class="field span-12">
+                <label for="notes">Notes</label>
+                <textarea id="notes" placeholder="Symptoms, triggers, wins, etc."></textarea>
+              </div>
+            </div>
+            <div class="right" style="margin-top:10px">
+              <button type="submit" class="btn">Save Entry</button>
+              <button type="button" id="resetForm" class="btn ghost">Reset</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card span-4">
+          <h3 style="margin-top:0">Recent Entries</h3>
+          <div id="entriesList" class="list" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="milestones">
+      <div class="grid">
+        <div class="card span-6">
+          <h2 style="margin-top:0">Add Milestone</h2>
+          <form id="milestoneForm">
+            <div class="row">
+              <div class="field span-4">
+                <label for="msDate">Date</label>
+                <input id="msDate" type="date" required />
+              </div>
+              <div class="field span-8">
+                <label for="msTitle">Title</label>
+                <input id="msTitle" placeholder="e.g., First appointment, Name change filed" required />
+              </div>
+              <div class="field span-12">
+                <label for="msNote">Notes</label>
+                <textarea id="msNote" placeholder="Any details you want to remember"></textarea>
+              </div>
+            </div>
+            <div class="right">
+              <button class="btn secondary" type="submit">Add Milestone</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card span-6">
+          <h3 style="margin-top:0">Timeline</h3>
+          <div id="milestoneList" class="list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="reports">
+      <div class="grid">
+        <div class="card span-12">
+          <h2 style="margin-top:0">Last 7 Days Overview</h2>
+          <div class="stats">
+            <div class="kpi"><div class="muted">Mood</div><div id="kpiMood" style="font-size:22px;font-weight:800">-</div></div>
+            <div class="kpi"><div class="muted">Energy</div><div id="kpiEnergy" style="font-size:22px;font-weight:800">-</div></div>
+            <div class="kpi"><div class="muted">Sleep</div><div id="kpiSleep" style="font-size:22px;font-weight:800">-</div></div>
+          </div>
+          <div style="margin-top:12px">
+            <canvas id="spark" width="600" height="80" aria-label="Mood trend sparkline"></canvas>
+            <div class="hint">Mood trend (last 14 entries)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="settings">
+      <div class="grid">
+        <div class="card span-6">
+          <h2 style="margin-top:0">Data</h2>
+          <div class="right" style="margin-bottom:10px">
+            <button id="exportBtn" class="btn">Export JSON</button>
+            <button id="clearBtn" class="btn danger">Clear All</button>
+          </div>
+          <label for="importBox">Import JSON</label>
+          <textarea id="importBox" placeholder='Paste previously exported JSON here'></textarea>
+          <div class="right" style="margin-top:8px">
+            <button id="importBtn" class="btn secondary">Import</button>
+          </div>
+          <p class="hint" id="dataInfo" style="margin-top:10px"></p>
+        </div>
+
+        <div class="card span-6">
+          <h2 style="margin-top:0">About</h2>
+          <p class="muted">
+            Your data is stored locally in your browser via localStorage. No servers involved.
+          </p>
+          <ul class="muted">
+            <li>Use Track to log daily wellness and meds.</li>
+            <li>Use Milestones to record key steps in your transition.</li>
+            <li>Reports shows 7-day averages and mood trend.</li>
+            <li>Export regularly to back up.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Utilities
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+    const fmt = (n, d=1) => Number.isFinite(n) ? n.toFixed(d) : '-';
+    const todayISO = () => new Date().toISOString().slice(0,10);
+    const toISO = (d) => new Date(d).toISOString().slice(0,10);
+    const uid = () => Math.random().toString(36).slice(2, 9);
+
+    // Storage
+    const KEYS = { entries: 'tawt_entries', milestones: 'tawt_milestones' };
+    const load = (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
+    const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+    // State
+    let entries = load(KEYS.entries);
+    let milestones = load(KEYS.milestones);
+
+    // Tabs
+    const tabs = $('#tabs');
+    const sections = $$('main section');
+    tabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-tab]');
+      if (!btn) return;
+      $$('nav button').forEach(b => b.classList.toggle('active', b === btn));
+      sections.forEach(s => s.classList.toggle('active', s.id === btn.dataset.tab));
+      btn.setAttribute('aria-selected', 'true');
+      $$('nav button').forEach(b => { if (b!==btn) b.removeAttribute('aria-selected'); });
+      if (btn.dataset.tab === 'reports') renderReports();
+    });
+
+    // Track form
+    const entryForm = $('#entryForm');
+    const entryDate = $('#entryDate');
+    const mood = $('#mood'); const moodVal = $('#moodVal');
+    const energy = $('#energy'); const energyVal = $('#energyVal');
+    const sleep = $('#sleep');
+    const medsTaken = $('#medsTaken'), medsDose = $('#medsDose'), medsName = $('#medsName');
+    const notes = $('#notes');
+    const list = $('#entriesList');
+
+    entryDate.value = todayISO();
+    mood.addEventListener('input', () => moodVal.textContent = mood.value);
+    energy.addEventListener('input', () => energyVal.textContent = energy.value);
+    $('#resetForm').addEventListener('click', () => {
+      entryDate.value = todayISO();
+      mood.value = 3; mood.dispatchEvent(new Event('input'));
+      energy.value = 3; energy.dispatchEvent(new Event('input'));
+      sleep.value = 8; medsTaken.value = ''; medsDose.value = ''; medsName.value = ''; notes.value = '';
+    });
+
+    entryForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const entry = {
+        id: uid(),
+        date: entryDate.value || todayISO(),
+        mood: +mood.value,
+        energy: +energy.value,
+        sleep: +sleep.value || 0,
+        meds: {
+          taken: medsTaken.value || null,
+          dose: medsDose.value.trim() || null,
+          name: medsName.value.trim() || null
+        },
+        notes: notes.value.trim() || ''
+      };
+      // Deduplicate by date (keep last)
+      entries = entries.filter(x => x.date !== entry.date);
+      entries.push(entry);
+      entries.sort((a,b) => a.date.localeCompare(b.date)); // ascending
+      save(KEYS.entries, entries);
+      renderEntries();
+      entryForm.reset();
+      entryDate.value = entry.date;
+      mood.value = entry.mood; mood.dispatchEvent(new Event('input'));
+      energy.value = entry.energy; energy.dispatchEvent(new Event('input'));
+      sleep.value = entry.sleep;
+    });
+
+    function renderEntries() {
+      if (!entries.length) { list.innerHTML = '<div class="muted">No entries yet.</div>'; return; }
+      const recent = [...entries].slice(-10).reverse();
+      list.innerHTML = '';
+      recent.forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        const chips = [];
+        chips.push(`<span class="chip">Mood ${e.mood}</span>`);
+        chips.push(`<span class="chip">Energy ${e.energy}</span>`);
+        chips.push(`<span class="chip">Sleep ${fmt(e.sleep,1)}h</span>`);
+        if (e.meds?.taken) chips.push(`<span class="chip">${e.meds.taken === 'yes' ? 'Meds ✓' : 'Meds ⨯'}</span>`);
+        if (e.meds?.name) chips.push(`<span class="chip">${e.meds.name}${e.meds?.dose ? ' • ' + e.meds.dose : ''}</span>`);
+        div.innerHTML = `
+          <div>
+            <div style="font-weight:700">${e.date}</div>
+            <div class="chips" style="margin:6px 0">${chips.join('')}</div>
+            ${e.notes ? `<div class="muted" style="white-space:pre-wrap">${e.notes}</div>` : ''}
+          </div>
+          <div class="right">
+            <button class="btn danger" data-del="${e.id}">Delete</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+      list.querySelectorAll('[data-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del');
+          entries = entries.filter(x => x.id !== id);
+          save(KEYS.entries, entries);
+          renderEntries();
+        });
+      });
+    }
+
+    // Milestones
+    const msForm = $('#milestoneForm');
+    const msDate = $('#msDate'); const msTitle = $('#msTitle'); const msNote = $('#msNote');
+    const msList = $('#milestoneList');
+    msDate.value = todayISO();
+
+    msForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const m = { id: uid(), date: msDate.value || todayISO(), title: msTitle.value.trim(), note: msNote.value.trim() };
+      if (!m.title) return;
+      milestones.push(m);
+      milestones.sort((a,b) => a.date.localeCompare(b.date));
+      save(KEYS.milestones, milestones);
+      msForm.reset(); msDate.value = m.date;
+      renderMilestones();
+    });
+
+    function renderMilestones() {
+      if (!milestones.length) { msList.innerHTML = '<div class="muted">No milestones yet.</div>'; return; }
+      msList.innerHTML = '';
+      [...milestones].reverse().forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `
+          <div>
+            <div style="font-weight:700">${m.title}</div>
+            <div class="muted">${m.date}</div>
+            ${m.note ? `<div style="margin-top:6px; white-space:pre-wrap">${m.note}</div>` : ''}
+          </div>
+          <div class="right">
+            <button class="btn ghost" data-ms-edit="${m.id}">Edit</button>
+            <button class="btn danger" data-ms-del="${m.id}">Delete</button>
+          </div>
+        `;
+        msList.appendChild(div);
+      });
+      msList.querySelectorAll('[data-ms-del]').forEach(b => b.addEventListener('click', () => {
+        const id = b.getAttribute('data-ms-del');
+        milestones = milestones.filter(x => x.id !== id);
+        save(KEYS.milestones, milestones);
+        renderMilestones();
+      }));
+      msList.querySelectorAll('[data-ms-edit]').forEach(b => b.addEventListener('click', () => {
+        const m = milestones.find(x => x.id === b.getAttribute('data-ms-edit'));
+        if (!m) return;
+        msDate.value = m.date; msTitle.value = m.title; msNote.value = m.note || '';
+        // Switch tab
+        $$('nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === 'milestones'));
+        sections.forEach(s => s.classList.toggle('active', s.id === 'milestones'));
+      }));
+    }
+
+    // Reports
+    function lastNDays(n) {
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - (n - 1));
+      const iso = toISO(cutoff);
+      return entries.filter(e => e.date >= iso);
+    }
+    function avg(arr, key) {
+      const vals = arr.map(x => +x[key]).filter(Number.isFinite);
+      if (!vals.length) return NaN;
+      return vals.reduce((a,b) => a+b, 0) / vals.length;
+    }
+    function renderSparkline(canvas, values, { min=1, max=5 } = {}) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0,0,w,h);
+      if (!values.length) return;
+      const n = values.length;
+      const pad = 6;
+      const x = i => pad + (w - pad*2) * (i / (n - 1 || 1));
+      const y = v => pad + (h - pad*2) * (1 - (v - min) / (max - min));
+      // Gradient
+      const grad = ctx.createLinearGradient(0,0,0,h);
+      grad.addColorStop(0, '#34d399'); grad.addColorStop(1, '#3b82f6');
+      ctx.lineWidth = 2; ctx.strokeStyle = grad; ctx.beginPath();
+      ctx.moveTo(x(0), y(values[0]));
+      for (let i=1;i<n;i++) ctx.lineTo(x(i), y(values[i]));
+      ctx.stroke();
+      // Fill
+      ctx.lineTo(x(n-1), h - pad);
+      ctx.lineTo(x(0), h - pad);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(52,211,153,0.10)';
+      ctx.fill();
+      // Dots
+      ctx.fillStyle = '#60a5fa';
+      values.forEach((v,i) => { ctx.beginPath(); ctx.arc(x(i), y(v), 2.5, 0, Math.PI*2); ctx.fill(); });
+    }
+    function renderReports() {
+      const last7 = lastNDays(7);
+      $('#kpiMood').textContent = fmt(avg(last7, 'mood'), 1);
+      $('#kpiEnergy').textContent = fmt(avg(last7, 'energy'), 1);
+      $('#kpiSleep').textContent = fmt(avg(last7, 'sleep'), 1);
+      const moodSeq = entries.slice(-14).map(e => e.mood);
+      renderSparkline($('#spark'), moodSeq);
+    }
+
+    // Settings
+    const exportBtn = $('#exportBtn');
+    const importBtn = $('#importBtn');
+    const clearBtn = $('#clearBtn');
+    const importBox = $('#importBox');
+    const dataInfo = $('#dataInfo');
+
+    function updateDataInfo() {
+      const bytes = new Blob([JSON.stringify({ entries, milestones })]).size;
+      const kb = (bytes/1024).toFixed(1);
+      dataInfo.textContent = `Entries: ${entries.length} • Milestones: ${milestones.length} • Size: ${kb} KB`;
+    }
+
+    exportBtn.addEventListener('click', () => {
+      const payload = { exportedAt: new Date().toISOString(), entries, milestones };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `tawt-backup-${todayISO()}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(a.href);
+    });
+
+    importBtn.addEventListener('click', () => {
+      if (!importBox.value.trim()) return;
+      try {
+        const data = JSON.parse(importBox.value);
+        if (!Array.isArray(data.entries) || !Array.isArray(data.milestones)) throw new Error('Invalid data');
+        entries = data.entries; milestones = data.milestones;
+        save(KEYS.entries, entries); save(KEYS.milestones, milestones);
+        renderEntries(); renderMilestones(); renderReports(); updateDataInfo();
+        importBox.value = '';
+        alert('Import successful.');
+      } catch (e) {
+        alert('Import failed: ' + e.message);
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      if (!confirm('Clear all data? This cannot be undone.')) return;
+      entries = []; milestones = [];
+      save(KEYS.entries, entries); save(KEYS.milestones, milestones);
+      renderEntries(); renderMilestones(); renderReports(); updateDataInfo();
+    });
+
+    // Init
+    renderEntries();
+    renderMilestones();
+    renderReports();
+    updateDataInfo();
+  </script>
+</body>
+</html>
+``` 
