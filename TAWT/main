@@ -90,10 +90,15 @@
   <header>#these are all the current tabs
     <div class="wrap">
       <h1>TAWT — Transition & Wellness Tracker</h1>
+      <!-- TAB NAV BUTTONS -->
       <nav id="tabs">
+        <!-- Button: Track tab -->
         <button data-tab="track" class="active" aria-controls="track" aria-selected="true">Track</button>
+        <!-- Button: Milestones tab -->
         <button data-tab="milestones" aria-controls="milestones">Milestones</button>
+        <!-- Button: Reports tab (renders KPIs & sparkline on click) -->
         <button data-tab="reports" aria-controls="reports">Reports</button>
+        <!-- Button: Settings tab -->
         <button data-tab="settings" aria-controls="settings">Settings</button>
       </nav>
     </div>
@@ -153,7 +158,9 @@
               </div>
             </div>
             <div class="right" style="margin-top:10px">
+              <!-- Button: Save daily wellness entry -->
               <button type="submit" class="btn">Save Entry</button>
+              <!-- Button: Reset daily wellness form -->
               <button type="button" id="resetForm" class="btn ghost">Reset</button>
             </div>
           </form>
@@ -161,6 +168,7 @@
 
         <div class="card span-4">
           <h3 style="margin-top:0">Recent Entries</h3>
+          <!-- Delete buttons for entries are created dynamically in renderEntries() -->
           <div id="entriesList" class="list" aria-live="polite"></div>
         </div>
       </div>
@@ -186,13 +194,17 @@
               </div>
             </div>
             <div class="right">
+              <!-- Button: Add milestone -->
               <button class="btn secondary" type="submit">Add Milestone</button>
+              <!-- Button: Reset milestone form -->
+              <button type="button" id="msReset" class="btn ghost">Reset</button>
             </div>
           </form>
         </div>
 
         <div class="card span-6">
           <h3 style="margin-top:0">Timeline</h3>
+          <!-- Edit/Delete milestone buttons are created dynamically in renderMilestones() -->
           <div id="milestoneList" class="list"></div>
         </div>
       </div>
@@ -202,11 +214,17 @@
       <div class="grid">
         <div class="card span-12">
           <h2 style="margin-top:0">Last 7 Days Overview</h2>
+          <div class="right" style="margin-bottom:10px">
+            <!-- Button: Reset reports view -->
+            <button type="button" id="resetReports" class="btn ghost">Reset</button>
+          </div>
+          <!-- KPI values (no buttons here) -->
           <div class="stats">
             <div class="kpi"><div class="muted">Mood</div><div id="kpiMood" style="font-size:22px;font-weight:800">-</div></div>
             <div class="kpi"><div class="muted">Energy</div><div id="kpiEnergy" style="font-size:22px;font-weight:800">-</div></div>
             <div class="kpi"><div class="muted">Sleep</div><div id="kpiSleep" style="font-size:22px;font-weight:800">-</div></div>
           </div>
+          <!-- Sparkline canvas rendered in renderReports() -->
           <div style="margin-top:12px">
             <canvas id="spark" width="600" height="80" aria-label="Mood trend sparkline"></canvas>
             <div class="hint">Mood trend (last 14 entries)</div>
@@ -220,10 +238,13 @@
         <div class="card span-6">
           <h2 style="margin-top:0">Data</h2>
           <div class="right" style="margin-bottom:10px">
+            <!-- Button: Export JSON data -->
             <button id="exportBtn" class="btn">Export JSON</button>
+            <!-- Button: Clear all stored data -->
             <button id="clearBtn" class="btn danger">Clear All</button>
           </div>
           <label for="importBox">Import JSON</label>
+            <!-- Button: Import JSON data -->
           <textarea id="importBox" placeholder='Paste previously exported JSON here'></textarea>
           <div class="right" style="margin-top:8px">
             <button id="importBtn" class="btn secondary">Import</button>
@@ -248,7 +269,8 @@
   </main>
 
   <script>
-    // Utilities
+    // --- TAB NAV BUTTONS LOGIC ---
+    // Handles clicking on the nav buttons to switch visible sections & triggers report rendering.
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
     const fmt = (n, d=1) => Number.isFinite(n) ? n.toFixed(d) : '-';
@@ -291,6 +313,8 @@
     entryDate.value = todayISO();
     mood.addEventListener('input', () => moodVal.textContent = mood.value);
     energy.addEventListener('input', () => energyVal.textContent = energy.value);
+    // --- RESET FORM BUTTON LOGIC ---
+    // Button: #resetForm resets the Track form to default values.
     $('#resetForm').addEventListener('click', () => {
       entryDate.value = todayISO();
       mood.value = 3; mood.dispatchEvent(new Event('input'));
@@ -298,6 +322,8 @@
       sleep.value = 8; medsTaken.value = ''; medsDose.value = ''; medsName.value = ''; notes.value = '';
     });
 
+    // --- SAVE ENTRY BUTTON LOGIC ---
+    // Triggered by submitting #entryForm (Save Entry button).
     entryForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const entry = {
@@ -326,6 +352,8 @@
       sleep.value = entry.sleep;
     });
 
+    // --- DELETE ENTRY BUTTONS LOGIC ---
+    // Delete buttons are injected in renderEntries(); each gets a click listener here.
     function renderEntries() {
       if (!entries.length) { list.innerHTML = '<div class="muted">No entries yet.</div>'; return; }
       const recent = [...entries].slice(-10).reverse();
@@ -352,6 +380,7 @@
         list.appendChild(div);
       });
       list.querySelectorAll('[data-del]').forEach(btn => {
+        // Button: Delete entry
         btn.addEventListener('click', () => {
           const id = btn.getAttribute('data-del');
           entries = entries.filter(x => x.id !== id);
@@ -367,6 +396,16 @@
     const msList = $('#milestoneList');
     msDate.value = todayISO();
 
+    // --- RESET MILESTONE FORM BUTTON LOGIC ---
+    // Button: #msReset clears milestone inputs and resets date to today.
+    $('#msReset').addEventListener('click', () => {
+      msDate.value = todayISO();
+      msTitle.value = '';
+      msNote.value = '';
+    });
+
+    // --- ADD MILESTONE BUTTON LOGIC ---
+    // Triggered by submitting #milestoneForm (Add Milestone button).
     msForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const m = { id: uid(), date: msDate.value || todayISO(), title: msTitle.value.trim(), note: msNote.value.trim() };
@@ -378,6 +417,8 @@
       renderMilestones();
     });
 
+    // --- EDIT / DELETE MILESTONE BUTTONS LOGIC ---
+    // Buttons generated in renderMilestones(): Edit (data-ms-edit) & Delete (data-ms-del).
     function renderMilestones() {
       if (!milestones.length) { msList.innerHTML = '<div class="muted">No milestones yet.</div>'; return; }
       msList.innerHTML = '';
@@ -398,12 +439,14 @@
         msList.appendChild(div);
       });
       msList.querySelectorAll('[data-ms-del]').forEach(b => b.addEventListener('click', () => {
+        // Button: Delete milestone
         const id = b.getAttribute('data-ms-del');
         milestones = milestones.filter(x => x.id !== id);
         save(KEYS.milestones, milestones);
         renderMilestones();
       }));
       msList.querySelectorAll('[data-ms-edit]').forEach(b => b.addEventListener('click', () => {
+        // Button: Edit milestone (loads data back into the form)
         const m = milestones.find(x => x.id === b.getAttribute('data-ms-edit'));
         if (!m) return;
         msDate.value = m.date; msTitle.value = m.title; msNote.value = m.note || '';
@@ -450,6 +493,18 @@
       ctx.fillStyle = '#60a5fa';
       values.forEach((v,i) => { ctx.beginPath(); ctx.arc(x(i), y(v), 2.5, 0, Math.PI*2); ctx.fill(); });
     }
+    // --- REPORTS RESET BUTTON LOGIC ---
+    // Button: #resetReports clears KPIs and wipes sparkline canvas.
+    $('#resetReports').addEventListener('click', () => {
+      $('#kpiMood').textContent = '-';
+      $('#kpiEnergy').textContent = '-';
+      $('#kpiSleep').textContent = '-';
+      const c = $('#spark');
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+    });
+
+    // --- REPORTS TAB (NO BUTTONS INSIDE, RENDER ON TAB CLICK) ---
     function renderReports() {
       const last7 = lastNDays(7);
       $('#kpiMood').textContent = fmt(avg(last7, 'mood'), 1);
@@ -472,6 +527,8 @@
       dataInfo.textContent = `Entries: ${entries.length} • Milestones: ${milestones.length} • Size: ${kb} KB`;
     }
 
+    // --- SETTINGS BUTTONS LOGIC ---
+    // Button: Export JSON (#exportBtn)
     exportBtn.addEventListener('click', () => {
       const payload = { exportedAt: new Date().toISOString(), entries, milestones };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -482,6 +539,7 @@
       URL.revokeObjectURL(a.href);
     });
 
+    // Button: Import JSON (#importBtn)
     importBtn.addEventListener('click', () => {
       if (!importBox.value.trim()) return;
       try {
@@ -497,6 +555,7 @@
       }
     });
 
+    // Button: Clear All (#clearBtn)
     clearBtn.addEventListener('click', () => {
       if (!confirm('Clear all data? This cannot be undone.')) return;
       entries = []; milestones = [];
@@ -504,7 +563,7 @@
       renderEntries(); renderMilestones(); renderReports(); updateDataInfo();
     });
 
-    // Init
+    // --- INIT (Initial render after page load) ---
     renderEntries();
     renderMilestones();
     renderReports();
@@ -512,4 +571,3 @@
   </script>
 </body>
 </html>
-``` 
