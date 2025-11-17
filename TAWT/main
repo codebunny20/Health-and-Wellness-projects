@@ -150,6 +150,10 @@
                     <label class="sr-only" for="medsName">Name</label>
                     <input id="medsName" placeholder="Name (e.g., Estradiol)" />
                   </div>
+                  <div class="field span-3">
+                    <label class="sr-only" for="medsTime">Time taken</label>
+                    <input id="medsTime" type="time" />
+                  </div>
                 </div>
               </div>
               <div class="field span-12">
@@ -209,7 +213,7 @@
         </div>
       </div>
     </section>
-====================================
+
     <section id="reports">
       <div class="grid">
         <div class="card span-12">
@@ -217,17 +221,31 @@
           <div class="right" style="margin-bottom:10px">
             <!-- Button: Reset reports view -->
             <button type="button" id="resetReports" class="btn ghost">Reset</button>
+            <!-- Added: Range selector -->
+            <select id="reportRange" style="background:#0b1220;border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px">
+              <option value="7" selected>Last 7</option>
+              <option value="14">Last 14</option>
+              <option value="30">Last 30</option>
+            </select>
           </div>
-          <!-- KPI values (no buttons here) -->
+          <!-- KPI values -->
           <div class="stats">
             <div class="kpi"><div class="muted">Mood</div><div id="kpiMood" style="font-size:22px;font-weight:800">-</div></div>
             <div class="kpi"><div class="muted">Energy</div><div id="kpiEnergy" style="font-size:22px;font-weight:800">-</div></div>
             <div class="kpi"><div class="muted">Sleep</div><div id="kpiSleep" style="font-size:22px;font-weight:800">-</div></div>
+            <!-- Added KPI: Meds adherence -->
+            <div class="kpi"><div class="muted">Adherence</div><div id="kpiAdherence" style="font-size:22px;font-weight:800">-</div></div>
+            <!-- Added KPI: Mood variability -->
+            <div class="kpi"><div class="muted">Mood SD</div><div id="kpiMoodSD" style="font-size:22px;font-weight:800">-</div></div>
           </div>
-          <!-- Sparkline canvas rendered in renderReports() -->
+          <!-- Sparkline canvases -->
           <div style="margin-top:12px">
             <canvas id="spark" width="600" height="80" aria-label="Mood trend sparkline"></canvas>
-            <div class="hint">Mood trend (last 14 entries)</div>
+            <div class="hint">Mood trend (selected range)</div>
+          </div>
+          <div style="margin-top:12px">
+            <canvas id="energySpark" width="600" height="80" aria-label="Energy trend sparkline"></canvas>
+            <div class="hint">Energy trend (selected range)</div>
           </div>
         </div>
       </div>
@@ -309,17 +327,32 @@
     const medsTaken = $('#medsTaken'), medsDose = $('#medsDose'), medsName = $('#medsName');
     const notes = $('#notes');
     const list = $('#entriesList');
+    const medsTime = $('#medsTime');
 
     entryDate.value = todayISO();
     mood.addEventListener('input', () => moodVal.textContent = mood.value);
     energy.addEventListener('input', () => energyVal.textContent = energy.value);
+
+    // Enable/disable Meds fields based on Taken
+    function updateMedsFields() {
+      const on = medsTaken.value === 'yes';
+      [medsDose, medsName, medsTime].forEach(el => {
+        el.disabled = !on;
+        if (el.parentElement) el.parentElement.style.opacity = on ? '' : '.6';
+      });
+      if (!on) { medsDose.value = ''; medsName.value = ''; medsTime.value = ''; }
+    }
+    medsTaken.addEventListener('change', updateMedsFields);
+    updateMedsFields();
+
     // --- RESET FORM BUTTON LOGIC ---
     // Button: #resetForm resets the Track form to default values.
     $('#resetForm').addEventListener('click', () => {
       entryDate.value = todayISO();
       mood.value = 3; mood.dispatchEvent(new Event('input'));
       energy.value = 3; energy.dispatchEvent(new Event('input'));
-      sleep.value = 8; medsTaken.value = ''; medsDose.value = ''; medsName.value = ''; notes.value = '';
+      sleep.value = 8; medsTaken.value = ''; medsDose.value = ''; medsName.value = ''; medsTime.value = ''; notes.value = '';
+      updateMedsFields();
     });
 
     // --- SAVE ENTRY BUTTON LOGIC ---
@@ -335,7 +368,8 @@
         meds: {
           taken: medsTaken.value || null,
           dose: medsDose.value.trim() || null,
-          name: medsName.value.trim() || null
+          name: medsName.value.trim() || null,
+          time: medsTime.value || null
         },
         notes: notes.value.trim() || ''
       };
@@ -350,6 +384,7 @@
       mood.value = entry.mood; mood.dispatchEvent(new Event('input'));
       energy.value = entry.energy; energy.dispatchEvent(new Event('input'));
       sleep.value = entry.sleep;
+      updateMedsFields();
     });
 
     // --- DELETE ENTRY BUTTONS LOGIC ---
@@ -367,6 +402,7 @@
         chips.push(`<span class="chip">Sleep ${fmt(e.sleep,1)}h</span>`);
         if (e.meds?.taken) chips.push(`<span class="chip">${e.meds.taken === 'yes' ? 'Meds ✓' : 'Meds ⨯'}</span>`);
         if (e.meds?.name) chips.push(`<span class="chip">${e.meds.name}${e.meds?.dose ? ' • ' + e.meds.dose : ''}</span>`);
+        if (e.meds?.time) chips.push(`<span class="chip">Time ${e.meds.time}</span>`);
         div.innerHTML = `
           <div>
             <div style="font-weight:700">${e.date}</div>
@@ -502,17 +538,37 @@
       const c = $('#spark');
       const ctx = c.getContext('2d');
       ctx.clearRect(0, 0, c.width, c.height);
+      $('#kpiAdherence').textContent = '-';
+      $('#kpiMoodSD').textContent = '-';
+      const ce = $('#energySpark')?.getContext('2d');
+      if (ce) ce.clearRect(0,0,$('#energySpark').width,$('#energySpark').height);
     });
 
     // --- REPORTS TAB (NO BUTTONS INSIDE, RENDER ON TAB CLICK) ---
     function renderReports() {
-      const last7 = lastNDays(7);
-      $('#kpiMood').textContent = fmt(avg(last7, 'mood'), 1);
-      $('#kpiEnergy').textContent = fmt(avg(last7, 'energy'), 1);
-      $('#kpiSleep').textContent = fmt(avg(last7, 'sleep'), 1);
-      const moodSeq = entries.slice(-14).map(e => e.mood);
-      renderSparkline($('#spark'), moodSeq);
+      const days = +($('#reportRange')?.value || 7);
+      const subset = lastNDays(days);
+      $('#kpiMood').textContent = fmt(avg(subset, 'mood'), 1);
+      $('#kpiEnergy').textContent = fmt(avg(subset, 'energy'), 1);
+      $('#kpiSleep').textContent = fmt(avg(subset, 'sleep'), 1);
+      // Adherence (% of entries with meds.taken === 'yes')
+      const adherenceVals = subset.filter(e => e.meds && e.meds.taken);
+      const taken = adherenceVals.filter(e => e.meds.taken === 'yes').length;
+      const adherencePct = adherenceVals.length ? (100 * taken / adherenceVals.length) : NaN;
+      $('#kpiAdherence').textContent = Number.isFinite(adherencePct) ? adherencePct.toFixed(0) + '%' : '-';
+      // Mood variability (std dev)
+      const moodVals = subset.map(e => e.mood).filter(Number.isFinite);
+      $('#kpiMoodSD').textContent = fmt(std(moodVals), 2);
+
+      // Mood sparkline (subset sequence)
+      renderSparkline($('#spark'), moodVals);
+      // Energy sparkline
+      const energyVals = subset.map(e => e.energy).filter(Number.isFinite);
+      renderSparkline($('#energySpark'), energyVals, { min:1, max:5 });
     }
+
+    // Added: range selector listener
+    $('#reportRange')?.addEventListener('change', renderReports);
 
     // Settings
     const exportBtn = $('#exportBtn');
@@ -571,3 +627,4 @@
   </script>
 </body>
 </html>
+``` 
