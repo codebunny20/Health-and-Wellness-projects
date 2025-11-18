@@ -108,6 +108,8 @@
         <button data-tab="reports" aria-controls="reports">Reports</button>
         <!-- Button: Settings tab -->
         <button data-tab="settings" aria-controls="settings">Settings</button>
+        <!-- Add: About tab -->
+        <button data-tab="about" aria-controls="about">About</button>
       </nav>
     </div>
   </header>
@@ -351,6 +353,47 @@
         </div>
       </div>
     </section>
+
+    <!-- Add: About tab -->
+    <section id="about">
+      <div class="grid">
+        <div class="card span-6">
+          <h2 style="margin-top:0">About TAWT</h2>
+          <p class="muted">
+            TAWT is a single-page app for tracking daily wellness, milestones, and cycles.
+            Your data stays in your browser (localStorage). There’s no backend.
+          </p>
+          <ul class="muted">
+            <li>Tabs: Track, Milestones, Cycle, Reports, Settings, About</li>
+            <li>Export/Import JSON from Settings to back up or migrate</li>
+            <li>Reports show averages and simple sparklines</li>
+            <li>Privacy-friendly: no network storage of your entries</li>
+          </ul>
+        </div>
+
+        <div class="card span-6">
+          <h2 style="margin-top:0">Report a Bug</h2>
+          <div class="row">
+            <div class="field span-12">
+              <label for="bugSubject">Email subject</label>
+              <input id="bugSubject" placeholder="TAWT bug: [short summary]" />
+            </div>
+            <div class="field span-12">
+              <label for="bugTemplate">Email body (copy/paste or open in Gmail)</label>
+              <textarea id="bugTemplate" style="min-height:220px" placeholder="Bug report template will appear here"></textarea>
+            </div>
+          </div>
+          <div class="right" style="margin-top:10px">
+            <button type="button" id="bugGmail" class="btn">Open in Gmail</button>
+            <button type="button" id="bugCopy" class="btn secondary">Copy Template</button>
+            <button type="button" id="bugRefresh" class="btn ghost">Refresh Template</button>
+          </div>
+          <p class="hint" style="margin-top:8px">
+            Tip: “Open in Gmail” composes a message to bunnycontact.me@gmail.com with the template prefilled.
+          </p>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -392,6 +435,8 @@
       $$('nav button').forEach(b => { if (b!==btn) b.removeAttribute('aria-selected'); });
       if (btn.dataset.tab === 'reports') renderReports();
       if (btn.dataset.tab === 'cycle') renderCycles();
+      // Add: lazy init for About tab
+      if (btn.dataset.tab === 'about') renderAbout();
     });
 
     // Track form bindings: cache inputs and wire up live range value display
@@ -412,6 +457,68 @@
     const importBox = $('#importBox');
     const dataInfo  = $('#dataInfo');
     const reportRangeEl = $('#reportRange');
+
+    // Add: bug report constants/helpers
+    const BUG_EMAIL = 'bunnycontact.me@gmail.com';
+    function buildBugTemplate() {
+      const now = new Date();
+      const counts = { entries: entries.length, milestones: milestones.length, cycles: cycles.length };
+      const bytes = new Blob([JSON.stringify({ entries, milestones, cycles })]).size;
+      const kb = (bytes / 1024).toFixed(1);
+      return `Summary:
+[One or two sentences]
+
+Steps to reproduce:
+1. 
+2. 
+3. 
+
+Expected:
+[What you expected to happen]
+
+Actual:
+[What actually happened]
+
+Additional notes:
+[Anything else that might help]
+
+Technical details (auto-filled):
+- Date/Time: ${now.toISOString()}
+- Browser: ${navigator.userAgent}
+- URL: ${location.href}
+- Data counts: Entries=${counts.entries}, Milestones=${counts.milestones}, Cycles=${counts.cycles}
+- Approx data size: ${kb} KB`;
+    }
+    function renderAbout() {
+      const subj = $('#bugSubject');
+      const body = $('#bugTemplate');
+      if (subj && !subj.value) subj.value = 'TAWT bug: [short summary]';
+      if (body && !body.value) body.value = buildBugTemplate();
+
+      const btnCopy = $('#bugCopy');
+      const btnGmail = $('#bugGmail');
+      const btnRefresh = $('#bugRefresh');
+
+      if (btnCopy) btnCopy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText($('#bugTemplate').value);
+          btnCopy.textContent = 'Copied';
+          setTimeout(() => (btnCopy.textContent = 'Copy Template'), 1200);
+        } catch {}
+      };
+      if (btnRefresh) btnRefresh.onclick = () => {
+        const t = buildBugTemplate();
+        const ta = $('#bugTemplate');
+        ta.value = t;
+      };
+      if (btnGmail) btnGmail.onclick = () => {
+        const to = encodeURIComponent(BUG_EMAIL);
+        const su = encodeURIComponent($('#bugSubject').value || 'TAWT bug report');
+        const bo = encodeURIComponent($('#bugTemplate').value || buildBugTemplate());
+        const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${su}&body=${bo}`;
+        window.open(url, '_blank');
+      };
+    }
 
     entryDate.value = todayISO();
     mood.addEventListener('input', () => moodVal.textContent = mood.value);
@@ -863,6 +970,8 @@
     renderReports();
     renderCycles();
     updateDataInfo();
+    // Add: prefill About bug template once
+    renderAbout();
   </script>
 </body>
 </html>
