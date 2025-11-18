@@ -9,7 +9,7 @@
 <body>
   <header class="page-header">
     <h1>TAWT Overview</h1>
-    <p>A lightweight, client‑side web app to track daily wellness, medication/HRT adherence, and transition milestones. Data is stored locally in your browser (no server).</p>
+    <p>A lightweight, client‑side web app to track daily wellness, medication/HRT adherence, transition milestones, and cycles. Data is stored locally in your browser (no server).</p>
   </header>
 
   <main id="content">
@@ -31,6 +31,16 @@
         <ul>
           <li>Add items with Date, Title, Notes</li>
           <li>Timeline view with Edit and Delete</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Cycle</h3>
+        <ul>
+          <li>Track start date (Day 1), optional end date, flow (light/medium/heavy), and notes</li>
+          <li>Actions: Save Cycle, Reset, Mark Today as Day 1</li>
+          <li>Cycle Stats: Average Length and predicted Next Start</li>
+          <li>Recent Cycles list with quick delete</li>
         </ul>
       </section>
 
@@ -62,6 +72,7 @@
       <ul>
         <li><code>tawt_entries</code>: array of daily entries</li>
         <li><code>tawt_milestones</code>: array of milestones</li>
+        <li><code>tawt_cycles</code>: array of cycle records</li>
       </ul>
 
       <h3>Entry</h3>
@@ -75,6 +86,11 @@
       <ul>
         <li><code>id</code>, <code>date</code>, <code>title</code>, <code>note</code></li>
       </ul>
+
+      <h3>Cycle</h3>
+      <ul>
+        <li><code>id</code>, <code>start</code> (YYYY‑MM‑DD), <code>end</code> (optional YYYY‑MM‑DD), <code>flow</code> ("light" | "medium" | "heavy" | null), <code>notes</code></li>
+      </ul>
     </section>
 
     <section aria-labelledby="how-it-works">
@@ -83,6 +99,7 @@
         <li>Single‑page app; no external libraries.</li>
         <li>All calculations (KPIs, sparkline rendering) are done in the browser.</li>
         <li>Dedupes entries by date (latest wins). Most recent items are shown first in lists.</li>
+        <li>Cycle stats: average length is computed from consecutive start dates; next start is predicted from the average.</li>
       </ul>
     </section>
 
@@ -101,6 +118,7 @@
         <li>Add milestones for key transition events.</li>
         <li>Open Reports to view averages, variability, and trends.</li>
         <li>Periodically Export JSON for backup; Import to restore.</li>
+        <li>Optionally, use Cycle to mark Day 1 today; later add end date, flow, and notes.</li>
       </ol>
     </section>
   </main>

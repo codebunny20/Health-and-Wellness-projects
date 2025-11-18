@@ -102,6 +102,8 @@
         <button data-tab="track" class="active" aria-controls="track" aria-selected="true">Track</button>
         <!-- Button: Milestones tab -->
         <button data-tab="milestones" aria-controls="milestones">Milestones</button>
+        <!-- Add: Cycle tab -->
+        <button data-tab="cycle" aria-controls="cycle">Cycle</button>
         <!-- Button: Reports tab (renders KPIs & sparkline on click) -->
         <button data-tab="reports" aria-controls="reports">Reports</button>
         <!-- Button: Settings tab -->
@@ -222,6 +224,61 @@
       </div>
     </section>
 
+    <!-- Add: Cycle tab -->
+    <section id="cycle">
+      <div class="grid">
+        <div class="card span-6">
+          <h2 style="margin-top:0">Cycle Tracker</h2>
+          <form id="cycleForm">
+            <div class="row">
+              <div class="field span-6">
+                <label for="cfStart">Start date (Day 1)</label>
+                <input id="cfStart" type="date" required />
+              </div>
+              <div class="field span-6">
+                <label for="cfEnd">End date <span class="muted">(optional)</span></label>
+                <input id="cfEnd" type="date" />
+              </div>
+              <div class="field span-6">
+                <label for="cfFlow">Flow <span class="muted">(optional)</span></label>
+                <select id="cfFlow">
+                  <option value="">—</option>
+                  <option value="light">Light</option>
+                  <option value="medium">Medium</option>
+                  <option value="heavy">Heavy</option>
+                </select>
+              </div>
+              <div class="field span-12">
+                <label for="cfNotes">Notes</label>
+                <textarea id="cfNotes" placeholder="Symptoms, mood, etc."></textarea>
+              </div>
+            </div>
+            <div class="right" style="margin-top:10px">
+              <button type="submit" class="btn">Save Cycle</button>
+              <button type="button" id="cycleReset" class="btn ghost">Reset</button>
+              <button type="button" id="cycleToday" class="btn secondary">Mark Today as Day 1</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card span-6">
+          <h3 style="margin-top:0">Cycle Stats</h3>
+          <div class="stats" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="kpi">
+              <div class="muted">Avg Length</div>
+              <div id="kpiAvgCycle" style="font-size:22px;font-weight:800">-</div>
+            </div>
+            <div class="kpi">
+              <div class="muted">Next Start</div>
+              <div id="kpiNextStart" style="font-size:22px;font-weight:800">-</div>
+            </div>
+          </div>
+          <h3 style="margin:14px 0 6px">Recent Cycles</h3>
+          <div id="cycleList" class="list" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- Reports tab: derived metrics and sparkline visualizations -->
     <section id="reports">
       <div class="grid">
@@ -300,8 +357,8 @@
     // ===== App architecture =====
     // - Tiny DOM helpers ($, $$)
     // - Utility formatters (fmt, todayISO, toISO) and uid() for ids
-    // - State arrays: entries[], milestones[] (persisted via localStorage)
-    // - Renderers: renderEntries(), renderMilestones(), renderReports()
+    // - State arrays: entries[], milestones[], cycles[] (persisted via localStorage)
+    // - Renderers: renderEntries(), renderMilestones(), renderReports(), renderCycles()
     // - Event handlers: form submits, tab clicks, settings actions
 
     // DOM helpers and small utilities
@@ -314,13 +371,14 @@
     const uid = () => Math.random().toString(36).slice(2, 9);
 
     // localStorage helpers: Keys + JSON-safe load/save
-    const KEYS = { entries: 'tawt_entries', milestones: 'tawt_milestones' };
+    const KEYS = { entries: 'tawt_entries', milestones: 'tawt_milestones', cycles: 'tawt_cycles' };
     const load = (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
     const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
     // In-memory state mirrors localStorage; always save() after mutations
     let entries = load(KEYS.entries);
     let milestones = load(KEYS.milestones);
+    let cycles = load(KEYS.cycles);
 
     // Tabs: delegate clicks on nav buttons; toggle .active on button and matching <section>; render reports lazily on tab open
     const tabs = $('#tabs');
@@ -333,6 +391,7 @@
       btn.setAttribute('aria-selected', 'true');
       $$('nav button').forEach(b => { if (b!==btn) b.removeAttribute('aria-selected'); });
       if (btn.dataset.tab === 'reports') renderReports();
+      if (btn.dataset.tab === 'cycle') renderCycles();
     });
 
     // Track form bindings: cache inputs and wire up live range value display
@@ -619,7 +678,6 @@
       $('#kpiAdherence').textContent = Number.isFinite(adherencePct) ? adherencePct.toFixed(0) + '%' : '-';
       // Mood variability (std dev)
       const moodVals = subset.map(e => e.mood).filter(Number.isFinite);
-      // TODO: std() is referenced but not defined in this file. Implement a std helper or replace with a simple variability metric.
       $('#kpiMoodSD').textContent = fmt(std(moodVals), 2);
 
       // Mood sparkline (subset sequence)
@@ -632,19 +690,132 @@
     // Re-render when the range changes (7/14/30 days)
     reportRangeEl?.addEventListener('change', renderReports);
 
+    // ===== Cycle Tracker =====
+    // Cache Cycle elements
+    const cycleForm = $('#cycleForm');
+    const cfStart = $('#cfStart');
+    const cfEnd = $('#cfEnd');
+    const cfFlow = $('#cfFlow');
+    const cfNotes = $('#cfNotes');
+    const cycleList = $('#cycleList');
+    const kpiAvgCycle = $('#kpiAvgCycle');
+    const kpiNextStart = $('#kpiNextStart');
+
+    // Defaults
+    if (cfStart) cfStart.value = todayISO();
+
+    $('#cycleReset')?.addEventListener('click', () => {
+      if (!cfStart) return;
+      cfStart.value = todayISO();
+      cfEnd.value = '';
+      cfFlow.value = '';
+      cfNotes.value = '';
+    });
+    $('#cycleToday')?.addEventListener('click', () => {
+      if (!cfStart) return;
+      cfStart.value = todayISO();
+    });
+
+    // Helpers
+    function daysBetween(aISO, bISO) {
+      const a = new Date(aISO); const b = new Date(bISO);
+      return Math.round((b - a) / (1000*60*60*24));
+    }
+    function addDays(iso, d) {
+      const x = new Date(iso); x.setDate(x.getDate() + d);
+      return x.toISOString().slice(0,10);
+    }
+    function avgCycleLength(startDates) {
+      if (startDates.length < 2) return NaN;
+      let diffs = 0, n = 0;
+      for (let i=1;i<startDates.length;i++) {
+        diffs += daysBetween(startDates[i-1], startDates[i]);
+        n++;
+      }
+      return diffs / n;
+    }
+
+    // Save cycle
+    cycleForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const start = cfStart.value;
+      if (!start) return;
+      let end = cfEnd.value || null;
+      if (end && end < start) end = null; // ignore invalid end
+      const c = {
+        id: uid(),
+        start,
+        end,
+        flow: cfFlow.value || null,
+        notes: (cfNotes.value || '').trim()
+      };
+      cycles.push(c);
+      cycles.sort((a,b) => (a.start || '').localeCompare(b.start || ''));
+      save(KEYS.cycles, cycles);
+      renderCycles();
+      cycleForm.reset();
+      cfStart.value = c.start;
+    });
+
+    // Render cycles: stats + recent list
+    function renderCycles() {
+      // Stats
+      const starts = cycles.map(c => c.start).filter(Boolean).sort((a,b) => a.localeCompare(b));
+      const avgLen = avgCycleLength(starts);
+      kpiAvgCycle && (kpiAvgCycle.textContent = Number.isFinite(avgLen) ? `${avgLen.toFixed(1)}d` : '-');
+      const lastStart = starts[starts.length - 1];
+      const nextLen = Number.isFinite(avgLen) ? Math.round(avgLen) : 28;
+      kpiNextStart && (kpiNextStart.textContent = lastStart ? addDays(lastStart, nextLen) : '-');
+
+      // List
+      if (!cycleList) return;
+      if (!cycles.length) {
+        cycleList.innerHTML = '<div class="muted">No cycles yet.</div>';
+        return;
+      }
+      cycleList.innerHTML = '';
+      [...cycles].slice(-10).reverse().forEach(c => {
+        const chips = [];
+        chips.push(`<span class="chip">Start ${c.start}</span>`);
+        if (c.end) chips.push(`<span class="chip">End ${c.end}</span>`);
+        if (c.start && c.end) chips.push(`<span class="chip">Length ${daysBetween(c.start, c.end) + 1}d</span>`);
+        if (c.flow) chips.push(`<span class="chip">${c.flow[0].toUpperCase()}${c.flow.slice(1)}</span>`);
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `
+          <div>
+            <div class="chips" style="margin:6px 0">${chips.join('')}</div>
+            ${c.notes ? `<div class="muted" style="white-space:pre-wrap">${c.notes}</div>` : ''}
+          </div>
+          <div class="right">
+            <button class="btn danger" data-cy-del="${c.id}">Delete</button>
+          </div>
+        `;
+        cycleList.appendChild(div);
+      });
+      cycleList.querySelectorAll('[data-cy-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-cy-del');
+          cycles = cycles.filter(x => x.id !== id);
+          save(KEYS.cycles, cycles);
+          renderCycles();
+        });
+      });
+    }
+
     // Settings: export/import/clear and storage footprint
     /**
      * updateDataInfo(): shows counts and approximate serialized size in KB.
      */
     function updateDataInfo() {
-      const bytes = new Blob([JSON.stringify({ entries, milestones })]).size;
+      const bytes = new Blob([JSON.stringify({ entries, milestones, cycles })]).size;
       const kb = (bytes/1024).toFixed(1);
-      dataInfo.textContent = `Entries: ${entries.length} • Milestones: ${milestones.length} • Size: ${kb} KB`;
+      dataInfo.textContent = `Entries: ${entries.length} • Milestones: ${milestones.length} • Cycles: ${cycles.length} • Size: ${kb} KB`;
     }
 
     // Export JSON: downloads a pretty-printed backup with date-stamped filename
     exportBtn.addEventListener('click', () => {
-      const payload = { exportedAt: new Date().toISOString(), entries, milestones };
+      const payload = { exportedAt: new Date().toISOString(), entries, milestones, cycles };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -662,8 +833,15 @@
         const byDate = (a, b) => (a?.date || '').localeCompare(b?.date || '');
         entries = [...data.entries].sort(byDate);
         milestones = [...data.milestones].sort(byDate);
-        save(KEYS.entries, entries); save(KEYS.milestones, milestones);
-        renderEntries(); renderMilestones(); renderReports(); updateDataInfo();
+        // Add: cycles (optional in older backups)
+        if (Array.isArray(data.cycles)) {
+          const byStart = (a, b) => (a?.start || '').localeCompare(b?.start || '');
+          cycles = [...data.cycles].sort(byStart);
+        } else {
+          cycles = [];
+        }
+        save(KEYS.entries, entries); save(KEYS.milestones, milestones); save(KEYS.cycles, cycles);
+        renderEntries(); renderMilestones(); renderReports(); renderCycles(); updateDataInfo();
         importBox.value = '';
         alert('Import successful.');
       } catch (e) {
@@ -674,15 +852,16 @@
     // Clear All: wipes both datasets after confirmation, then re-renders and updates stats
     clearBtn.addEventListener('click', () => {
       if (!confirm('Clear all data? This cannot be undone.')) return;
-      entries = []; milestones = [];
-      save(KEYS.entries, entries); save(KEYS.milestones, milestones);
-      renderEntries(); renderMilestones(); renderReports(); updateDataInfo();
+      entries = []; milestones = []; cycles = [];
+      save(KEYS.entries, entries); save(KEYS.milestones, milestones); save(KEYS.cycles, cycles);
+      renderEntries(); renderMilestones(); renderReports(); renderCycles(); updateDataInfo();
     });
 
     // Initial render: hydrate UI from localStorage
     renderEntries();
     renderMilestones();
     renderReports();
+    renderCycles();
     updateDataInfo();
   </script>
 </body>
