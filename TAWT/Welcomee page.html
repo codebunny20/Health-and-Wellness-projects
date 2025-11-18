@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TAWT – Transition & Wellness Tracker</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8;
+      --accent:#34d399; --accent2:#60a5fa; --border:#1f2937;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+    header{padding:48px 20px 16px;max-width:880px;margin:0 auto}
+    h1{margin:0 0 12px;font-size:clamp(1.9rem,4vw,2.6rem);letter-spacing:.5px}
+    .tag{font-size:1.05rem;color:var(--accent);font-weight:600;margin:0 0 24px}
+    main{max-width:880px;margin:0 auto;padding:0 20px 60px;display:grid;gap:32px}
+    .panel{background:var(--panel);padding:22px 24px;border:1px solid var(--border);border-radius:16px}
+    a.cta{display:inline-block;text-decoration:none;background:linear-gradient(135deg,var(--accent),#16a34a);color:#021;padding:14px 22px;border-radius:12px;font-weight:700;margin-right:14px;margin-top:8px}
+    a.alt{background:linear-gradient(135deg,var(--accent2),#3b82f6)}
+    ul{margin:12px 0 0;padding-left:20px}
+    li{margin:6px 0}
+    .muted{color:var(--muted)}
+    footer{max-width:880px;margin:0 auto;padding:30px 20px;font-size:.8rem;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Welcome to TAWT</h1>
+    <p class="tag">A private, local, no‑signup tracker for daily wellness, transition milestones, and cycle patterns.</p>
+    <p style="max-width:660px">
+      TAWT helps you notice trends, honor progress, and keep gentle tabs on mood, energy, sleep, medication/HRT adherence, and key transition moments —
+      all stored <strong>only in your browser</strong>. Nothing is uploaded. You stay in control.
+    </p>
+  </header>
+
+  <main aria-labelledby="features">
+    <section class="panel">
+      <h2 id="features" style="margin-top:0">Highlights</h2>
+      <ul>
+        <li><strong>Daily wellness</strong>: mood, energy, sleep, meds/HRT + notes.</li>
+        <li><strong>Milestones timeline</strong>: record affirming steps and dates.</li>
+        <li><strong>Cycle tracker</strong>: start/end, flow, notes, predicted next start.</li>
+        <li><strong>Reports</strong>: rolling averages, adherence, variability, sparklines.</li>
+        <li><strong>Privacy</strong>: 100% localStorage. Export/Import JSON backups.</li>
+        <li><strong>Accessible</strong>: keyboard friendly, clear labels, low noise UI.</li>
+      </ul>
+    </section>
+
+    <section class="panel" aria-labelledby="getting-started">
+      <h2 id="getting-started" style="margin-top:0">Getting started</h2>
+      <ol style="margin:0;padding-left:20px">
+        <li>Open Track and save today’s entry.</li>
+        <li>Add a recent or historical milestone.</li>
+        <li>Visit Reports after a few days to see trends.</li>
+        <li>Export periodically for a personal backup.</li>
+      </ol>
+      <p class="muted" style="margin-top:14px">
+        You can clear or restore data anytime. Everything stays on your device unless you export it.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    TAWT – Transition & Wellness Tracker. All data local. No ads. No tracking.
+  </footer>
+</body>
+</html>
