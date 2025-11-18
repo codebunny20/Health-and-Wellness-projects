@@ -92,8 +92,8 @@
   </style>
 </head>
 <body>
-  <!-- Header contains app title and tab navigation; clicking a tab toggles a matching section by id -->
-  <header>#these are all the current tabs
+  <header>
+    <!-- Tabs -->
     <div class="wrap">
       <h1>TAWT — Transition & Wellness Tracker</h1>
       <!-- TAB NAV BUTTONS -->
@@ -217,7 +217,7 @@
         <div class="card span-6">
           <h3 style="margin-top:0">Timeline</h3>
           <!-- Edit/Delete milestone buttons are created dynamically in renderMilestones() -->
-          <div id="milestoneList" class="list"></div>
+          <div id="milestoneList" class="list" aria-live="polite"></div>
         </div>
       </div>
     </section>
@@ -345,6 +345,14 @@
     const notes = $('#notes');
     const list = $('#entriesList');
     const medsTime = $('#medsTime');
+
+    // Cache Settings/Reports elements instead of relying on global IDs
+    const exportBtn = $('#exportBtn');
+    const clearBtn  = $('#clearBtn');
+    const importBtn = $('#importBtn');
+    const importBox = $('#importBox');
+    const dataInfo  = $('#dataInfo');
+    const reportRangeEl = $('#reportRange');
 
     entryDate.value = todayISO();
     mood.addEventListener('input', () => moodVal.textContent = mood.value);
@@ -512,6 +520,8 @@
         // Switch tab
         $$('nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === 'milestones'));
         sections.forEach(s => s.classList.toggle('active', s.id === 'milestones'));
+        // Move focus to the title for quick editing
+        msTitle.focus();
       }));
     }
 
@@ -531,6 +541,15 @@
       const vals = arr.map(x => +x[key]).filter(Number.isFinite);
       if (!vals.length) return NaN;
       return vals.reduce((a,b) => a+b, 0) / vals.length;
+    }
+
+    // Standard deviation (population). Returns NaN if fewer than 2 values.
+    function std(arr) {
+      const vals = arr.filter(Number.isFinite);
+      if (vals.length < 2) return NaN;
+      const mean = vals.reduce((a,b) => a + b, 0) / vals.length;
+      const variance = vals.reduce((a, x) => a + (x - mean) ** 2, 0) / vals.length;
+      return Math.sqrt(variance);
     }
 
     /**
@@ -611,7 +630,7 @@
     }
 
     // Re-render when the range changes (7/14/30 days)
-    $('#reportRange')?.addEventListener('change', renderReports);
+    reportRangeEl?.addEventListener('change', renderReports);
 
     // Settings: export/import/clear and storage footprint
     /**
@@ -640,7 +659,9 @@
       try {
         const data = JSON.parse(importBox.value);
         if (!Array.isArray(data.entries) || !Array.isArray(data.milestones)) throw new Error('Invalid data');
-        entries = data.entries; milestones = data.milestones;
+        const byDate = (a, b) => (a?.date || '').localeCompare(b?.date || '');
+        entries = [...data.entries].sort(byDate);
+        milestones = [...data.milestones].sort(byDate);
         save(KEYS.entries, entries); save(KEYS.milestones, milestones);
         renderEntries(); renderMilestones(); renderReports(); updateDataInfo();
         importBox.value = '';
