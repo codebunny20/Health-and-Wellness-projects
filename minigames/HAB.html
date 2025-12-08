@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hit & Blow (Purple)</title>
+<style>
+  :root {
+    --hb-bg: #0f0a1f;
+    --hb-card: #1a1238;
+    --hb-panel: #231a4d;
+    --hb-accent: #8b5cf6;
+    --hb-accent-2: #c084fc;
+    --hb-text: #eae6ff;
+    --hb-muted: #b8a8ff;
+    --hb-good: #22c55e;
+    --hb-warn: #f59e0b;
+    --hb-bad: #ef4444;
+    --hb-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 0 1px rgba(139,92,246,.15) inset;
+  }
+  * { box-sizing: border-box; }
+  html, body { height:100%; }
+  body {
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    background:
+      radial-gradient(1200px 600px at 10% -20%, rgba(139,92,246,.25), transparent 60%),
+      radial-gradient(1200px 600px at 110% 120%, rgba(192,132,252,.20), transparent 60%),
+      linear-gradient(180deg, #0b0818, var(--hb-bg));
+    color: var(--hb-text);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .hb {
+    width: min(980px, 100%);
+  }
+  .hb-card {
+    background: linear-gradient(180deg, var(--hb-card), #140e2c);
+    border: 1px solid rgba(139,92,246,.25);
+    border-radius: 18px;
+    box-shadow: var(--hb-shadow);
+    overflow: clip;
+    position: relative;
+  }
+  .hb-header {
+    padding: 16px 18px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap: 14px 16px;
+    background:
+      linear-gradient(180deg, rgba(139,92,246,.12), transparent),
+      linear-gradient(180deg, var(--hb-panel), transparent 90%);
+    border-bottom: 1px solid rgba(139,92,246,.25);
+  }
+  .hb-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing:.3px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-right:auto;
+  }
+  .hb-title .dot {
+    width: 10px; height:10px; border-radius:999px;
+    background: linear-gradient(135deg, var(--hb-accent), var(--hb-accent-2));
+    box-shadow: 0 0 12px rgba(139,92,246,.8);
+  }
+  .hb-ctl {
+    display:flex; gap: 10px; align-items:center; flex-wrap:wrap;
+  }
+  .hb-seg {
+    display:flex; align-items:center; gap:8px; background:#130c2b; border:1px solid rgba(139,92,246,.25);
+    padding:6px; border-radius:12px;
+  }
+  .hb-seg label { font-size: 12px; color: var(--hb-muted); opacity:.9; }
+  .seg-btns { display:flex; gap:6px; }
+  .seg-btn {
+    appearance:none; border:1px solid rgba(139,92,246,.25);
+    background:#0f0a23; color:var(--hb-text);
+    padding:8px 10px; border-radius:10px; font-weight:600; font-size:12px; letter-spacing:.3px;
+    cursor:pointer; transition: .15s ease;
+  }
+  .seg-btn:hover { border-color: rgba(192,132,252,.6); transform: translateY(-1px); }
+  .seg-btn.active {
+    background: linear-gradient(180deg, rgba(139,92,246,.35), rgba(139,92,246,.15));
+    border-color: rgba(139,92,246,.8);
+    box-shadow: 0 0 0 2px rgba(139,92,246,.25) inset, 0 6px 18px rgba(139,92,246,.25);
+  }
+  .hb-main {
+    display:grid;
+    grid-template-columns: 1.2fr .8fr;
+    gap: 16px;
+    padding: 16px;
+  }
+  @media (max-width: 840px) {
+    .hb-main { grid-template-columns: 1fr; }
+  }
+  .hb-left, .hb-right {
+    background: #120c28; border:1px solid rgba(139,92,246,.25); border-radius:14px; padding: 12px;
+  }
+  .hb-left { position: sticky; top: 12px; align-self: start; }
+  .hb-section-title {
+    font-size: 12px; color: var(--hb-muted); margin: 4px 2px 8px; text-transform: uppercase; letter-spacing:.8px;
+  }
+  .hb-current {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding: 4px;
+  }
+  .slots {
+    display:flex; gap:10px;
+  }
+  .slot {
+    width: 46px; height:46px; border-radius:12px;
+    background:#0e0920;
+    border:1px dashed rgba(139,92,246,.35);
+    display:grid; place-items:center;
+    color:#fff; font-weight:800; font-size:18px;
+    box-shadow: inset 0 0 24px rgba(139,92,246,.08);
+  }
+  .slot.filled { border-style: solid; border-color: rgba(139,92,246,.65); background: #160e33; }
+  .slot .dot {
+    width: 22px; height:22px; border-radius: 999px; border:2px solid rgba(255,255,255,.15); box-shadow: 0 4px 12px rgba(0,0,0,.35);
+  }
+  .slot.next {
+    border-style: solid;
+    border-color: rgba(192,132,252,.95);
+    box-shadow: 0 0 0 2px rgba(139,92,246,.35) inset, 0 6px 18px rgba(139,92,246,.25);
+  }
+  .actions { margin-left:auto; display:flex; gap:8px; }
+  .a-btn {
+    appearance:none; border:1px solid rgba(139,92,246,.35); background:#0f0a23; color:#fff;
+    padding:10px 12px; border-radius:10px; font-weight:700; font-size:12px; letter-spacing:.4px; cursor:pointer; transition:.15s;
+  }
+  .a-btn.primary { background: linear-gradient(180deg, #6d28d9, #5b21b6); border-color: rgba(139,92,246,.9); }
+  .a-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .a-btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .hb-input {
+    margin-top: 8px; background:#0f0a23; border:1px solid rgba(139,92,246,.25); border-radius:12px; padding:10px;
+  }
+  .keypad, .palette { display:grid; gap:8px; }
+  .keypad { grid-template-columns: repeat(10, 1fr); }
+  @media (max-width:520px) { .keypad { grid-template-columns: repeat(5, 1fr); } }
+  .key {
+    aspect-ratio: 1 / 1;
+    border-radius:12px; border:1px solid rgba(139,92,246,.35); background:#140d2d; color:#fff; font-weight:800;
+    display:grid; place-items:center; cursor:pointer; transition:.12s;
+  }
+  .key:hover { transform: translateY(-2px); border-color: rgba(192,132,252,.7); }
+  .chip {
+    border-radius: 999px; padding:6px 10px; font-size:12px; font-weight:700;
+    background: rgba(139,92,246,.18); border:1px solid rgba(139,92,246,.35); color: var(--hb-text);
+  }
+  .hb-status {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background: #120b27; border:1px solid rgba(139,92,246,.3); border-radius:10px; padding:8px 10px; margin-top:10px;
+  }
+  .hb-status .msg { color: var(--hb-muted) }
+  .hb-status .ok { color: var (--hb-good); font-weight:800; }
+  .hb-status .warn { color: var(--hb-warn); font-weight:800; }
+  .hb-status .bad { color: var(--hb-bad); font-weight:800; }
+  .history {
+    display:flex; flex-direction:column; gap:8px; max-height: 360px; overflow:auto; padding-right:4px;
+  }
+  .row {
+    display:flex; align-items:center; gap:10px; background:#0d0920; border:1px solid rgba(139,92,246,.25);
+    border-radius:12px; padding:8px;
+  }
+  .row .list-guess { display:flex; gap:8px; }
+  .badge {
+    font-size:11px; font-weight:800; padding:6px 8px; border-radius:999px;
+    background: rgba(139,92,246,.15); border:1px solid rgba(139,92,246,.35);
+  }
+  .badge.hit { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.45); }
+  .badge.blow { background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.5); }
+  .divider { height:1px; background: rgba(139,92,246,.25); margin: 8px 0; }
+  .secret {
+    display:flex; align-items:center; gap:10px; padding:8px; background:#0c071d; border:1px dashed rgba(139,92,246,.35); border-radius:10px;
+  }
+  .hb-help { padding:12px 16px; color: var(--hb-muted); font-size: 13px; }
+  .hb-help summary { cursor:pointer; color: var(--hb-text); font-weight:700; }
+  .fade-in { animation: fade-in .2s ease; }
+  @keyframes fade-in { from { opacity:0; transform: translateY(4px);} to { opacity:1; transform:none; } }
+  .progress {
+    flex:1; height:6px; background:#1d1534; border-radius:4px; overflow:hidden;
+    box-shadow: inset 0 0 0 1px rgba(139,92,246,.25);
+  }
+  .progress .bar {
+    height:100%; width:0%; background:linear-gradient(90deg,var(--hb-accent),var(--hb-accent-2));
+    transition:width .3s ease;
+  }
+  @keyframes slot-pulse { 0%{transform:scale(1);}50%{transform:scale(1.12);}100%{transform:scale(1);} }
+  .slot.pulse { animation: slot-pulse .35s ease; }
+  @keyframes celebrate { 0%{transform:scale(1);}30%{transform:scale(1.18);}60%{transform:scale(1.05);}100%{transform:scale(1);} }
+  .slot.celebrate { animation: celebrate .8s ease; }
+  #confetti {
+    position:absolute; inset:0; width:100%; height:100%; pointer-events:none;
+  }
+</style>
+</head>
+<body>
+  <div class="hb" id="hb">
+    <div class="hb-card">
+      <div class="hb-header">
+        <div class="hb-title">
+          <span class="dot"></span>
+          Hit & Blow
+          <span class="chip">Purple</span>
+          <span class="chip" id="timer-chip" title="Elapsed time">00:00</span>
+          <span class="chip" id="streak-chip" title="Current win streak">Streak 0</span>
+        </div>
+        <div class="hb-ctl">
+          <div class="hb-seg" role="group" aria-label="Mode">
+            <label>Mode</label>
+            <div class="seg-btns">
+              <button class="seg-btn active" data-mode="number" id="mode-number" aria-pressed="true">Numbers</button>
+              <button class="seg-btn" data-mode="color" id="mode-color" aria-pressed="false">Colors</button>
+            </div>
+          </div>
+          <div class="hb-seg" role="group" aria-label="Length">
+            <label>Length</label>
+            <div class="seg-btns">
+              <button class="seg-btn active" data-len="3" id="len-3" aria-pressed="true">Short (3)</button>
+              <button class="seg-btn" data-len="4" id="len-4" aria-pressed="false">Medium (4)</button>
+              <button class="seg-btn" data-len="5" id="len-5" aria-pressed="false">Long (5)</button>
+            </div>
+          </div>
+          <button class="seg-btn" id="new-game">New Game</button>
+        </div>
+      </div>
+
+      <div class="hb-main">
+        <div class="hb-left">
+          <div class="hb-section-title">Your Guess</div>
+          <div class="hb-current">
+            <div class="slots" id="slots"></div>
+            <div class="actions">
+              <button class="a-btn" id="backspace" title="Backspace">⌫</button>
+              <button class="a-btn" id="clear">Clear</button>
+              <button class="a-btn primary" id="submit" disabled>Submit</button>
+            </div>
+          </div>
+
+          <div class="hb-input">
+            <div id="number-input" class="keypad" aria-hidden="false"></div>
+            <div id="color-input" class="palette" aria-hidden="true" style="display:none; grid-template-columns: repeat(8, 1fr); gap:10px;"></div>
+          </div>
+
+          <div class="hb-status">
+            <div class="progress" aria-hidden="true"><div class="bar" id="tries-progress"></div></div>
+            <div><span class="chip" id="tries-chip">Tries 0/0</span></div>
+            <div class="msg" id="status-msg">Make a guess!</div>
+          </div>
+        </div>
+
+        <div class="hb-right">
+          <div class="hb-section-title">History</div>
+          <div class="secret" id="secret" aria-live="polite"></div>
+          <div class="divider"></div>
+          <div class="history" id="history" role="log" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <div class="hb-help">
+        <details>
+          <summary>How to play</summary>
+          <p>Guess the secret sequence with no repeated items. A Hit means right item in the right position. A Blow means the item exists but in a different position.</p>
+          <ul>
+            <li>Modes: Numbers (0-9) or Colors (from the palette).</li>
+            <li>Lengths: Short (3), Medium (4), Long (5).</li>
+            <li>Limits: 8/10/12 guesses respectively.</li>
+            <li>Use keyboard for numbers (0-9, Backspace, Enter).</li>
+          </ul>
+        </details>
+      </div>
+    </div>
+  </div>
+
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script>
+(() => {
+  const PALETTE = [
+    { hex:'#a78bfa', name:'lilac'   },
+    { hex:'#8b5cf6', name:'purple'  },
+    { hex:'#d946ef', name:'fuchsia' },
+    { hex:'#ec4899', name:'pink'    },
+    { hex:'#06b6d4', name:'cyan'    },
+    { hex:'#10b981', name:'mint'    },
+    { hex:'#f59e0b', name:'amber'   },
+    { hex:'#f97316', name:'orange'  }
+  ];
+
+  const state = {
+    mode: 'number', // 'number' | 'color'
+    len: 3,
+    maxGuesses: 8,
+    secret: [],
+    guess: [],
+    history: [],
+    finished: false,
+    startTime: 0,
+    timerId: null,
+    streak: Number(localStorage.getItem('hb_streak') || '0'),
+    bestTimes: JSON.parse(localStorage.getItem('hb_bestTimes') || '{}') // key: mode-len => ms
+  };
+
+  // Elements
+  const el = {
+    slots: document.getElementById('slots'),
+    numberInput: document.getElementById('number-input'),
+    colorInput: document.getElementById('color-input'),
+    submit: document.getElementById('submit'),
+    clear: document.getElementById('clear'),
+    backspace: document.getElementById('backspace'),
+    triesChip: document.getElementById('tries-chip'),
+    status: document.getElementById('status-msg'),
+    history: document.getElementById('history'),
+    secret: document.getElementById('secret'),
+    modeNumber: document.getElementById('mode-number'),
+    modeColor: document.getElementById('mode-color'),
+    len3: document.getElementById('len-3'),
+    len4: document.getElementById('len-4'),
+    len5: document.getElementById('len-5'),
+    newGame: document.getElementById('new-game'),
+    timerChip: document.getElementById('timer-chip'),
+    streakChip: document.getElementById('streak-chip'),
+    triesProgress: document.getElementById('tries-progress'),
+    confetti: document.getElementById('confetti')
+  };
+
+  function setMaxGuesses() {
+    state.maxGuesses = state.len === 3 ? 8 : state.len === 4 ? 10 : 12;
+  }
+
+  function randPick(arr, count) {
+    const pool = [...arr];
+    const out = [];
+    while (out.length < count && pool.length) {
+      const i = Math.floor(Math.random() * pool.length);
+      out.push(pool.splice(i,1)[0]);
+    }
+    return out;
+  }
+
+  function genSecret() {
+    if (state.mode === 'number') {
+      const digits = Array.from({length:10}, (_,i)=> String(i));
+      state.secret = randPick(digits, state.len);
+    } else {
+      const indices = randPick([...PALETTE.keys()].map(String), state.len);
+      state.secret = indices; // store as palette index in string form
+    }
+  }
+
+  function resetUI() {
+    // slots
+    el.slots.innerHTML = '';
+    for (let i=0; i<state.len; i++) {
+      const s = document.createElement('div');
+      s.className = 'slot';
+      s.setAttribute('aria-label', `slot ${i+1}`);
+      s.dataset.idx = String(i); // allow click-to-remove
+      el.slots.appendChild(s);
+    }
+    // inputs
+    el.numberInput.style.display = state.mode === 'number' ? 'grid' : 'none';
+    el.numberInput.setAttribute('aria-hidden', state.mode === 'number' ? 'false' : 'true');
+    el.colorInput.style.display = state.mode === 'color' ? 'grid' : 'none';
+    el.colorInput.setAttribute('aria-hidden', state.mode === 'color' ? 'false' : 'true');
+
+    // number keypad
+    if (state.mode === 'number') {
+      el.numberInput.innerHTML = '';
+      for (let d=0; d<=9; d++) {
+        const b = document.createElement('button');
+        b.className = 'key';
+        b.textContent = String(d);
+        b.setAttribute('data-token', String(d));
+        b.setAttribute('aria-label', `Digit ${d}`);
+        b.addEventListener('click', () => addToken(String(d)));
+        el.numberInput.appendChild(b);
+      }
+    }
+    // color palette
+    if (state.mode === 'color') {
+      el.colorInput.innerHTML = '';
+      PALETTE.forEach((c, idx) => {
+        const b = document.createElement('button');
+        b.className = 'key';
+        b.setAttribute('data-token', String(idx));
+        b.setAttribute('title', c.name);
+        b.setAttribute('aria-label', `Color ${c.name}`);
+        b.style.background = c.hex;
+        b.style.borderColor = 'rgba(255,255,255,.35)';
+        b.addEventListener('click', () => addToken(String(idx)));
+        el.colorInput.appendChild(b);
+      });
+    }
+
+    // secret (hidden until end)
+    renderSecret(false);
+
+    // status
+    el.status.textContent = 'Make a guess!';
+    renderTries();
+    renderGuess();
+    el.history.innerHTML = '';
+  }
+
+  function renderTries() {
+    el.triesChip.textContent = `Tries ${state.history.length}/${state.maxGuesses}`;
+    updateProgress();
+  }
+
+  function renderSecret(reveal) {
+    el.secret.innerHTML = '';
+    const label = document.createElement('span');
+    label.className = 'chip';
+    label.textContent = reveal ? 'Secret' : 'Secret (hidden)';
+    el.secret.appendChild(label);
+    const wrap = document.createElement('div');
+    wrap.style.display = 'flex';
+    wrap.style.gap = '10px';
+    wrap.style.marginLeft = '6px';
+    for (let i=0;i<state.len;i++) {
+      const s = document.createElement('div');
+      s.className = 'slot filled';
+      if (reveal) {
+        if (state.mode === 'number') {
+          s.textContent = state.secret[i];
+        } else {
+          const dot = document.createElement('div');
+          dot.className = 'dot';
+          const idx = Number(state.secret[i]);
+          dot.style.background = PALETTE[idx].hex;
+          s.appendChild(dot);
+        }
+      } else {
+        s.textContent = '•';
+        s.style.opacity = .6;
+      }
+      wrap.appendChild(s);
+    }
+    el.secret.appendChild(wrap);
+  }
+
+  function renderGuess() {
+    const slots = el.slots.querySelectorAll('.slot');
+    slots.forEach((s, i) => {
+      s.innerHTML = '';
+      // highlight next empty slot
+      const isNext = !state.finished && state.guess.length < state.len && i === state.guess.length;
+      s.classList.toggle('next', isNext);
+
+      if (state.guess[i] != null) {
+        s.classList.add('filled');
+        if (state.mode === 'number') {
+          s.textContent = state.guess[i];
+        } else {
+          const dot = document.createElement('div');
+          dot.className = 'dot';
+          dot.style.background = PALETTE[Number(state.guess[i])].hex;
+          s.appendChild(dot);
+        }
+      } else {
+        s.classList.remove('filled');
+      }
+    });
+    el.submit.disabled = !(state.guess.length === state.len) || state.finished;
+
+    // pulse newly filled slot
+    if (state.guess.length) {
+      const lastIdx = state.guess.length - 1;
+      const slot = slots[lastIdx];
+      if (slot && slot.classList.contains('filled')) {
+        slot.classList.add('pulse');
+        slot.addEventListener('animationend', () => slot.classList.remove('pulse'), { once:true });
+      }
+    }
+  }
+
+  function addToken(token) {
+    if (state.finished) return;
+    if (state.guess.length >= state.len) return;
+    if (state.guess.includes(token)) {
+      nudge('No repeats!');
+      return;
+    }
+    state.guess.push(token);
+    renderGuess();
+    scrollToGuess();
+  }
+
+  function removeLast() {
+    if (state.finished) return;
+    state.guess.pop();
+    renderGuess();
+    scrollToGuess();
+  }
+
+  function clearGuess() {
+    if (state.finished) return;
+    state.guess = [];
+    renderGuess();
+    scrollToGuess();
+  }
+
+  function score(guess, secret) {
+    let hits = 0, blows = 0;
+    for (let i=0; i<guess.length; i++) {
+      if (guess[i] === secret[i]) hits++;
+    }
+    // Count set overlap minus hits (no repeats ensured)
+    const setG = new Set(guess), setS = new Set(secret);
+    setG.forEach(v => { if (setS.has(v)) blows++; });
+    blows -= hits;
+    return { hits, blows };
+  }
+
+  function addHistoryRow(entry) {
+    const row = document.createElement('div');
+    row.className = 'row fade-in';
+    const list = document.createElement('div');
+    list.className = 'list-guess';
+    entry.guess.forEach(tok => {
+      const cell = document.createElement('div');
+      cell.className = 'slot filled';
+      if (state.mode === 'number') {
+        cell.textContent = tok;
+      } else {
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.background = PALETTE[Number(tok)].hex;
+        cell.appendChild(dot);
+      }
+      list.appendChild(cell);
+    });
+    const hit = document.createElement('span');
+    hit.className = 'badge hit';
+    hit.textContent = `Hit ${entry.hits}`;
+    const blow = document.createElement('span');
+    blow.className = 'badge blow';
+    blow.textContent = `Blow ${entry.blows}`;
+    row.appendChild(list);
+    row.appendChild(hit);
+    row.appendChild(blow);
+    el.history.prepend(row);
+  }
+
+  function submitGuess() {
+    if (state.finished) return;
+    if (state.guess.length !== state.len) {
+      nudge('Fill all slots.');
+      return;
+    }
+    const g = [...state.guess];
+    const { hits, blows } = score(g, state.secret);
+    state.history.push({ guess: g, hits, blows });
+    renderTries();
+    addHistoryRow({ guess: g, hits, blows });
+
+    if (hits === state.len) {
+      state.finished = true;
+      stopTimer();
+      const elapsed = Date.now() - state.startTime;
+      const better = saveBestTime(elapsed);
+      state.streak += 1;
+      localStorage.setItem('hb_streak', String(state.streak));
+      updateStreakDisplay();
+      el.status.innerHTML = `<span class="ok">You win!</span> ${formatTime(elapsed)}${better?' (Best!)':''} in ${state.history.length} ${state.history.length===1?'try':'tries'}.`;
+      renderSecret(true);
+      // celebrate
+      el.slots.querySelectorAll('.slot').forEach(s => s.classList.add('celebrate'));
+      fireConfetti();
+    } else if (state.history.length >= state.maxGuesses) {
+      state.finished = true;
+      stopTimer();
+      state.streak = 0;
+      localStorage.setItem('hb_streak', '0');
+      updateStreakDisplay();
+      el.status.innerHTML = `<span class="bad">Out of guesses.</span> Better luck next time.`;
+      renderSecret(true);
+    } else {
+      el.status.innerHTML = `Hits <b>${hits}</b>, Blows <b>${blows}</b>.`;
+    }
+    state.guess = [];
+    renderGuess();
+    scrollToGuess();
+  }
+
+  function nudge(msg) {
+    el.status.innerHTML = `<span class="warn">${msg}</span>`;
+  }
+
+  function setMode(mode) {
+    if (state.mode === mode) return;
+    state.mode = mode;
+    updateSegButtons();
+    newGame();
+  }
+
+  function setLen(len) {
+    if (state.len === len) return;
+    state.len = len;
+    setMaxGuesses();
+    updateSegButtons();
+    newGame();
+  }
+
+  function updateSegButtons() {
+    const modeBtns = [el.modeNumber, el.modeColor];
+    modeBtns.forEach(b => {
+      const isActive = b.dataset.mode === state.mode;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-pressed', String(isActive));
+    });
+    [el.len3, el.len4, el.len5].forEach(b => {
+      const isActive = Number(b.dataset.len) === state.len;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-pressed', String(isActive));
+    });
+  }
+
+  function newGame() {
+    state.finished = false;
+    state.history = [];
+    state.guess = [];
+    setMaxGuesses();
+    genSecret();
+    resetUI();
+    scrollToGuess();
+    updateStreakDisplay();
+    startTimer();
+  }
+
+  function formatTime(ms) {
+    const sec = Math.floor(ms/1000);
+    const m = String(Math.floor(sec/60)).padStart(2,'0');
+    const s = String(sec%60).padStart(2,'0');
+    return `${m}:${s}`;
+  }
+
+  function startTimer() {
+    stopTimer();
+    state.startTime = Date.now();
+    el.timerChip.textContent = '00:00';
+    state.timerId = setInterval(() => {
+      if (state.finished) return;
+      const elapsed = Date.now() - state.startTime;
+      el.timerChip.textContent = formatTime(elapsed);
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (state.timerId) clearInterval(state.timerId);
+    state.timerId = null;
+  }
+
+  function updateStreakDisplay() {
+    el.streakChip.textContent = `Streak ${state.streak}`;
+  }
+
+  function updateProgress() {
+    const pct = (state.history.length / state.maxGuesses) * 100;
+    el.triesProgress.style.width = `${pct}%`;
+  }
+
+  function saveBestTime(elapsed) {
+    const key = `${state.mode}-${state.len}`;
+    const prev = state.bestTimes[key];
+    if (!prev || elapsed < prev) {
+      state.bestTimes[key] = elapsed;
+      localStorage.setItem('hb_bestTimes', JSON.stringify(state.bestTimes));
+      return true;
+    }
+    return false;
+  }
+
+  function fireConfetti() {
+    const canvas = el.confetti;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    const colors = ['#8b5cf6','#c084fc','#22c55e','#f59e0b','#f97316','#06b6d4','#ec4899','#d946ef'];
+    const particles = Array.from({length: 120}, () => ({
+      x: Math.random()*rect.width,
+      y: -20 - Math.random()*80,
+      r: 6 + Math.random()*6,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      vy: 2 + Math.random()*3,
+      vx: (Math.random()-0.5)*2,
+      ay: 0.05 + Math.random()*0.05,
+      spin: Math.random()*Math.PI,
+      vs: (Math.random()-0.5)*0.2
+    }));
+    let start = null;
+    function frame(ts) {
+      if (!start) start = ts;
+      const dt = 16;
+      ctx.clearRect(0,0,rect.width,rect.height);
+      particles.forEach(p => {
+        p.vy += p.ay;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.spin += p.vs;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.spin);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = 0.9;
+        ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r);
+        ctx.restore();
+      });
+      if (ts - start < 2600) requestAnimationFrame(frame);
+      else {
+        ctx.clearRect(0,0,rect.width,rect.height);
+        canvas.width = canvas.height = 0; // release
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // Events
+  el.modeNumber.addEventListener('click', () => setMode('number'));
+  el.modeColor.addEventListener('click', () => setMode('color'));
+  el.len3.addEventListener('click', () => setLen(3));
+  el.len4.addEventListener('click', () => setLen(4));
+  el.len5.addEventListener('click', () => setLen(5));
+  el.newGame.addEventListener('click', newGame);
+  el.submit.addEventListener('click', submitGuess);
+  el.clear.addEventListener('click', clearGuess);
+  el.backspace.addEventListener('click', removeLast);
+
+  function scrollToGuess() {
+    el.slots.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Keyboard support
+  document.addEventListener('keydown', (e) => {
+    if (state.finished) return;
+    if (/^\d$/.test(e.key) && state.mode === 'number') {
+      addToken(e.key);
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      removeLast();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      submitGuess();
+    }
+  });
+
+  // Slot click to remove
+  el.slots.addEventListener('click', (e) => {
+    const slot = e.target.closest('.slot');
+    if (slot && !state.finished) {
+      const idx = Number(slot.dataset.idx);
+      if (idx === state.guess.length - 1) {
+        removeLast();
+      } else if (idx < state.guess.length) {
+        state.guess.splice(idx, 1);
+        renderGuess();
+      }
+    }
+  });
+
+  // Initialize
+  newGame();
+})();
+</script>
+</body>
+</html>

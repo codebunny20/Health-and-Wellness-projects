@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Sound Match</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		:root {
+			--bg: #0f1222;
+			--card: #1b2040;
+			--card-front: #232a57;
+			--accent: #6ee7f8;
+			--accent-2: #a5f3fc;
+			--text: #e6f0ff;
+			--muted: #9aa3b2;
+			--success: #3ddc97;
+			--danger: #ff6b6b;
+			--shadow: 0 10px 25px rgba(0,0,0,0.35);
+		}
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+			background: radial-gradient(1200px 800px at 20% -10%, #1a1f3f, transparent 60%), var(--bg);
+			color: var(--text);
+			min-height: 100vh;
+			display: grid;
+			grid-template-rows: auto 1fr auto;
+			gap: 12px;
+		}
+		header, footer {
+			padding: 14px 16px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+		header h1 {
+			font-size: 18px;
+			font-weight: 600;
+			margin: 0;
+			letter-spacing: .3px;
+		}
+		.controls {
+			display: flex;
+			gap: 10px;
+			align-items: center;
+			flex-wrap: wrap;
+		}
+		button, .chip {
+			border: 1px solid rgba(255,255,255,0.12);
+			background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+			color: var(--text);
+			padding: 8px 12px;
+			border-radius: 10px;
+			box-shadow: var(--shadow);
+			cursor: pointer;
+			transition: transform .05s ease, filter .15s ease, background .2s ease;
+			font-weight: 600;
+		}
+		button:hover { filter: brightness(1.1); }
+		button:active { transform: translateY(1px) scale(0.99); }
+		.controls .chip {
+			padding: 6px 10px;
+			font-weight: 500;
+			user-select: none;
+		}
+		.grid {
+			width: min(1040px, 96vw);
+			margin: 0 auto 16px;
+			display: grid;
+			grid-template-columns: repeat(4, 1fr);
+			gap: 14px;
+			align-content: start;
+			padding: 0 12px 20px;
+		}
+		@media (max-width: 720px) {
+			.grid { grid-template-columns: repeat(3, 1fr); }
+		}
+		.card {
+			position: relative;
+			aspect-ratio: 3/4;
+			perspective: 1000px;
+		}
+		.card button {
+			all: unset;
+			width: 100%;
+			height: 100%;
+			display: block;
+			cursor: pointer;
+		}
+		.face {
+			position: absolute;
+			inset: 0;
+			border-radius: 14px;
+			backface-visibility: hidden;
+			transform-style: preserve-3d;
+			transition: transform 380ms cubic-bezier(.2,.8,.2,1), filter .2s ease;
+			box-shadow: var(--shadow);
+			border: 1px solid rgba(255,255,255,0.08);
+		}
+		.front {
+			background:
+				radial-gradient(60% 50% at 20% 0%, rgba(255,255,255,.12), transparent 60%),
+				radial-gradient(50% 50% at 80% 120%, rgba(255,255,255,.06), transparent 60%),
+				var(--card-front);
+			transform: rotateY(180deg);
+			display: grid;
+			place-items: center;
+			padding: 10px;
+			text-align: center;
+		}
+		.back {
+			background:
+				conic-gradient(from 180deg at 50% 50%, rgba(255,255,255,.06), transparent 60%),
+				var(--card);
+			display: grid;
+			place-items: center;
+			color: var(--accent-2);
+		}
+		.card.flipped .front { transform: rotateY(0); }
+		.card.flipped .back { transform: rotateY(180deg); }
+		.badge {
+			font-size: 12px;
+			color: var(--muted);
+			margin-top: 6px;
+		}
+		.icon {
+			font-size: clamp(22px, 4.5vw, 34px);
+			line-height: 1;
+		}
+		.back .icon { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35)); }
+		.front .label {
+			font-weight: 700;
+			letter-spacing: .3px;
+			color: var(--accent);
+			text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+			font-size: clamp(12px, 2.6vw, 14px);
+		}
+		.card.matched .front {
+			outline: 2px solid var(--success);
+			box-shadow: 0 0 0 3px rgba(61,220,151,0.15), var(--shadow);
+		}
+		.statusbar {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+		.range {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+		}
+		input[type="range"] {
+			accent-color: var(--accent);
+			cursor: pointer;
+		}
+		.toast {
+			position: fixed;
+			left: 50%;
+			top: 14px;
+			transform: translateX(-50%);
+			background: #111628cc;
+			backdrop-filter: blur(4px);
+			padding: 8px 12px;
+			border-radius: 10px;
+			border: 1px solid rgba(255,255,255,0.08);
+			box-shadow: var(--shadow);
+			font-size: 14px;
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity .25s ease, transform .25s ease;
+		}
+		.toast.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
+		footer { color: var(--muted); font-size: 12px; opacity: .9; }
+		a { color: var(--accent-2); text-decoration: none; }
+		a:hover { text-decoration: underline; }
+	</style>
+</head>
+<body>
+	<header>
+		<h1>Sound Match</h1>
+		<div class="controls">
+			<button id="newGameBtn" title="Start a new game">New Game</button>
+			<button id="muteBtn" aria-pressed="false" title="Mute/unmute audio">🔊</button>
+			<span class="range" title="Volume">
+				<label for="vol" class="chip">Vol</label>
+				<input id="vol" type="range" min="0" max="1" step="0.01" value="0.85">
+			</span>
+			<span class="chip" id="moveChip">Moves: 0</span>
+			<span class="chip" id="matchChip">Matched: 0/6</span>
+		</div>
+	</header>
+
+	<main>
+		<div class="grid" id="grid" aria-label="Sound matching grid"></div>
+		<div class="toast" id="toast" role="status" aria-live="polite"></div>
+	</main>
+
+	<footer>
+		<span>Flip cards to hear sounds. Match identical or thematically linked sounds (e.g., thunder + rain).</span>
+	</footer>
+
+	<script>
+		// Simple shuffle
+		function shuffle(arr) {
+			for (let i = arr.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[arr[i], arr[j]] = [arr[j], arr[i]];
+			}
+			return arr;
+		}
+
+		// WebAudio Synth
+		class SoundEngine {
+			constructor() {
+				this.ctx = null;
+				this.master = null;
+				this._muted = false;
+				this._volume = 0.85;
+			}
+			ensureCtx() {
+				if (!this.ctx) {
+					this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+					this.master = this.ctx.createGain();
+					this.master.gain.value = this._muted ? 0 : this._volume;
+					this.master.connect(this.ctx.destination);
+				}
+				return this.ctx;
+			}
+			set volume(v) {
+				this._volume = v;
+				if (this.master) this.master.gain.value = this._muted ? 0 : this._volume;
+			}
+			get volume() { return this._volume; }
+			toggleMute() {
+				this._muted = !this._muted;
+				if (this.master) this.master.gain.value = this._muted ? 0 : this._volume;
+				return this._muted;
+			}
+			async resume() {
+				this.ensureCtx();
+				if (this.ctx.state !== 'running') await this.ctx.resume();
+			}
+			now() { this.ensureCtx(); return this.ctx.currentTime; }
+
+			// Utilities
+			noiseBuffer(type = 'white', seconds = 2) {
+				const sr = this.ensureCtx().sampleRate;
+				const length = Math.floor(sr * seconds);
+				const buffer = this.ctx.createBuffer(1, length, sr);
+				const data = buffer.getChannelData(0);
+				let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+				for (let i = 0; i < length; i++) {
+					let white = Math.random() * 2 - 1;
+					if (type === 'pink') {
+						b0 = 0.99886 * b0 + white * 0.0555179;
+						b1 = 0.99332 * b1 + white * 0.0750759;
+						b2 = 0.96900 * b2 + white * 0.1538520;
+						b3 = 0.86650 * b3 + white * 0.3104856;
+						b4 = 0.55000 * b4 + white * 0.5329522;
+						b5 = -0.7616 * b5 - white * 0.0168980;
+						data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+						data[i] *= 0.11;
+						b6 = white * 0.115926;
+					} else {
+						data[i] = white;
+					}
+				}
+				return buffer;
+			}
+			env(gainNode, t0, a = 0.005, d = 0.2, s = 0.0, r = 0.2, peak = 1.0, sustain = 0.0) {
+				const g = gainNode.gain;
+				g.cancelScheduledValues(t0);
+				g.setValueAtTime(0.0001, t0);
+				g.linearRampToValueAtTime(peak, t0 + a);
+				g.linearRampToValueAtTime(sustain, t0 + a + d);
+				g.linearRampToValueAtTime(sustain, t0 + a + d + s);
+				g.linearRampToValueAtTime(0.0001, t0 + a + d + s + r);
+			}
+			connectToMaster(node) {
+				node.connect(this.master);
+			}
+
+			// Sound palette
+			play(name) {
+				this.ensureCtx();
+				switch (name) {
+					case 'thunder': return this.thunder();
+					case 'rain': return this.rain();
+					case 'kick': return this.kick();
+					case 'snare': return this.snare();
+					case 'beepHigh': return this.beep(880);
+					case 'beepLow': return this.beep(440);
+					case 'ocean': return this.ocean();
+					case 'wind': return this.wind();
+					case 'bird': return this.bird();
+					case 'owl': return this.owl();
+					case 'clap': return this.clap();
+					default: return this.beep(660);
+				}
+			}
+			beep(freq = 660, duration = 0.18) {
+				const t0 = this.now();
+				const osc = this.ctx.createOscillator();
+				const g = this.ctx.createGain();
+				osc.type = 'sine';
+				osc.frequency.setValueAtTime(freq, t0);
+				this.env(g, t0, 0.005, 0.07, 0.02, 0.06, 0.9, 0.0);
+				osc.connect(g); this.connectToMaster(g);
+				osc.start(t0); osc.stop(t0 + duration + 0.1);
+			}
+			kick() {
+				const t0 = this.now();
+				const osc = this.ctx.createOscillator();
+				const g = this.ctx.createGain();
+				osc.type = 'sine';
+				osc.frequency.setValueAtTime(120, t0);
+				osc.frequency.exponentialRampToValueAtTime(42, t0 + 0.15);
+				this.env(g, t0, 0.001, 0.08, 0.0, 0.12, 1.0, 0.0);
+				osc.connect(g); this.connectToMaster(g);
+				osc.start(t0); osc.stop(t0 + 0.25);
+			}
+			snare() {
+				const t0 = this.now();
+				const src = this.ctx.createBufferSource();
+				src.buffer = this.noiseBuffer('white', 0.5);
+				const bp = this.ctx.createBiquadFilter();
+				bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.6;
+				const g = this.ctx.createGain();
+				this.env(g, t0, 0.001, 0.06, 0.0, 0.1, 0.8, 0.0);
+				src.connect(bp).connect(g); this.connectToMaster(g);
+				src.start(t0); src.stop(t0 + 0.2);
+			}
+			clap() {
+				const t0 = this.now();
+				const src = this.ctx.createBufferSource();
+				src.buffer = this.noiseBuffer('white', 0.3);
+				const hp = this.ctx.createBiquadFilter();
+				hp.type = 'highpass'; hp.frequency.value = 1200;
+				const g = this.ctx.createGain();
+				// Multiple quick decays to mimic clap reflections
+				this.env(g, t0, 0.001, 0.02, 0.02, 0.06, 1.0, 0.0);
+				src.connect(hp).connect(g); this.connectToMaster(g);
+				src.start(t0); src.stop(t0 + 0.12);
+			}
+			thunder() {
+				const t0 = this.now();
+				// Rumble
+				const rum = this.ctx.createOscillator();
+				rum.type = 'sine';
+				rum.frequency.setValueAtTime(45, t0);
+				const rumG = this.ctx.createGain();
+				this.env(rumG, t0, 0.01, 0.4, 0.2, 0.8, 0.8, 0.2);
+				rum.connect(rumG); this.connectToMaster(rumG);
+				rum.start(t0); rum.stop(t0 + 1.5);
+
+				// Crackle noise
+				const src = this.ctx.createBufferSource();
+				src.buffer = this.noiseBuffer('white', 1.5);
+				const lp = this.ctx.createBiquadFilter();
+				lp.type = 'lowpass'; lp.frequency.setValueAtTime(1200, t0);
+				const g = this.ctx.createGain();
+				this.env(g, t0, 0.001, 0.25, 0.2, 0.9, 1.0, 0.1);
+				src.connect(lp).connect(g); this.connectToMaster(g);
+				src.start(t0); src.stop(t0 + 1.5);
+			}
+			rain() {
+				const t0 = this.now();
+				const src = this.ctx.createBufferSource();
+				src.buffer = this.noiseBuffer('pink', 2.0);
+				const hp = this.ctx.createBiquadFilter();
+				hp.type = 'highpass'; hp.frequency.value = 700;
+				const g = this.ctx.createGain();
+				this.env(g, t0, 0.02, 0.2, 0.5, 0.5, 0.5, 0.25);
+				src.connect(hp).connect(g); this.connectToMaster(g);
+				src.start(t0); src.stop(t0 + 1.2);
+			}
+			ocean() {
+				const t0 = this.now();
+				const src = this.ctx.createBufferSource();
+				src.buffer = this.noiseBuffer('pink', 2.0);
+				const lp = this.ctx.createBiquadFilter();
+				lp.type = 'lowpass'; lp.frequency.value = 500;
+				const g = this.ctx.createGain();
+				this.env(g, t0, 0.03, 0.4, 0.3, 0.4, 0.7, 0.25);
+				src.connect(lp).connect(g); this.connectToMaster(g);
+				src.start(t0); src.stop(t0 + 1.2);
+			}
+			wind() {
+				const t0 = this.now();
+				const src = this.ctx.createBufferSource();
+				src.buffer = this.noiseBuffer('white', 2.0);
+				const bp = this.ctx.createBiquadFilter();
+				bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.6;
+				const g = this.ctx.createGain();
+				const lfo = this.ctx.createOscillator();
+				const lfoG = this.ctx.createGain();
+				lfo.type = 'sine'; lfo.frequency.setValueAtTime(0.8, t0);
+				lfoG.gain.value = 0.35;
+				lfo.connect(lfoG).connect(g.gain);
+				this.env(g, t0, 0.02, 0.3, 0.4, 0.4, 0.6, 0.2);
+				src.connect(bp).connect(g); this.connectToMaster(g);
+				src.start(t0); src.stop(t0 + 1.4);
+				lfo.start(t0); lfo.stop(t0 + 1.4);
+			}
+			bird() {
+				const t0 = this.now();
+				const osc = this.ctx.createOscillator();
+				const g = this.ctx.createGain();
+				osc.type = 'triangle';
+				osc.frequency.setValueAtTime(1600, t0);
+				osc.frequency.exponentialRampToValueAtTime(3000, t0 + 0.08);
+				this.env(g, t0, 0.005, 0.06, 0.0, 0.08, 0.9, 0.0);
+				osc.connect(g); this.connectToMaster(g);
+				osc.start(t0); osc.stop(t0 + 0.18);
+			}
+			owl() {
+				const t0 = this.now();
+				const osc = this.ctx.createOscillator();
+				const g = this.ctx.createGain();
+				osc.type = 'sine';
+				osc.frequency.setValueAtTime(380, t0);
+				osc.frequency.exponentialRampToValueAtTime(320, t0 + 0.18);
+				g.gain.setValueAtTime(0.0001, t0);
+				g.gain.linearRampToValueAtTime(0.9, t0 + 0.04);
+				g.gain.linearRampToValueAtTime(0.2, t0 + 0.18);
+				// second "hoot"
+				g.gain.linearRampToValueAtTime(0.8, t0 + 0.24);
+				g.gain.linearRampToValueAtTime(0.0001, t0 + 0.42);
+				osc.connect(g); this.connectToMaster(g);
+				osc.start(t0); osc.stop(t0 + 0.45);
+			}
+			rainbowNote(freq = 440, dur = 0.25) { this.beep(freq, dur); }
+		}
+
+		const engine = new SoundEngine();
+
+		// Define pairs: identical or thematic (group defines match)
+		const PAIRS = [
+			{ group: 'storm', a: { sound: 'thunder', label: 'Thunder' }, b: { sound: 'rain', label: 'Rain' } },
+			{ group: 'drums', a: { sound: 'kick', label: 'Kick' }, b: { sound: 'snare', label: 'Snare' } },
+			{ group: 'beeps', a: { sound: 'beepHigh', label: 'High Beep' }, b: { sound: 'beepLow', label: 'Low Beep' } },
+			{ group: 'seaair', a: { sound: 'ocean', label: 'Ocean' }, b: { sound: 'wind', label: 'Wind' } },
+			{ group: 'animals', a: { sound: 'bird', label: 'Bird' }, b: { sound: 'owl', label: 'Owl' } },
+			{ group: 'claps', a: { sound: 'clap', label: 'Clap' }, b: { sound: 'clap', label: 'Clap' } }, // identical pair
+		];
+
+		const ICONS = {
+			back: '🔈',
+			thunder: '⛈️',
+			rain: '🌧️',
+			kick: '🥁',
+			snare: '🥁',
+			beepHigh: '🎵',
+			beepLow: '🎶',
+			ocean: '🌊',
+			wind: '💨',
+			bird: '🐦',
+			owl: '🦉',
+			clap: '👏'
+		};
+
+		const grid = document.getElementById('grid');
+		const newGameBtn = document.getElementById('newGameBtn');
+		const muteBtn = document.getElementById('muteBtn');
+		const vol = document.getElementById('vol');
+		const moveChip = document.getElementById('moveChip');
+		const matchChip = document.getElementById('matchChip');
+		const toast = document.getElementById('toast');
+
+		let deck = [];
+		let first = null;
+		let second = null;
+		let lock = false;
+		let moves = 0;
+		let matches = 0;
+
+		function makeDeck() {
+			const d = [];
+			for (const p of PAIRS) {
+				d.push({
+					id: crypto.randomUUID(),
+					group: p.group,
+					sound: p.a.sound,
+					label: p.a.label
+				});
+				d.push({
+					id: crypto.randomUUID(),
+					group: p.group,
+					sound: p.b.sound,
+					label: p.b.label
+				});
+			}
+			return shuffle(d);
+		}
+
+		function render() {
+			grid.innerHTML = '';
+			for (const card of deck) {
+				const wrap = document.createElement('div');
+				wrap.className = 'card';
+				wrap.dataset.id = card.id;
+				wrap.dataset.group = card.group;
+				wrap.dataset.sound = card.sound;
+
+				const btn = document.createElement('button');
+				btn.setAttribute('aria-label', 'Card, press to flip and play sound');
+				btn.setAttribute('aria-pressed', 'false');
+				btn.addEventListener('click', () => onFlip(wrap));
+				btn.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						onFlip(wrap);
+					}
+				});
+
+				const back = document.createElement('div');
+				back.className = 'face back';
+				back.innerHTML = `<div class="icon">${ICONS.back}</div><div class="badge">Flip</div>`;
+
+				const front = document.createElement('div');
+				front.className = 'face front';
+				const icon = ICONS[card.sound] || '🎧';
+				front.innerHTML = `<div class="icon">${icon}</div><div class="label">${card.label}</div>`;
+
+				btn.appendChild(back);
+				btn.appendChild(front);
+				wrap.appendChild(btn);
+				grid.appendChild(wrap);
+			}
+			updateChips();
+		}
+
+		function updateChips() {
+			moveChip.textContent = `Moves: ${moves}`;
+			matchChip.textContent = `Matched: ${matches}/${PAIRS.length}`;
+		}
+
+		function showToast(msg, timeout = 1100) {
+			toast.textContent = msg;
+			toast.classList.add('show');
+			clearTimeout(showToast._t);
+			showToast._t = setTimeout(() => toast.classList.remove('show'), timeout);
+		}
+
+		function resetState() {
+			first = null; second = null; lock = false; moves = 0; matches = 0;
+			updateChips();
+		}
+
+		async function onFlip(cardEl) {
+			await engine.resume(); // unlock audio on first user gesture
+
+			if (lock) return;
+			if (cardEl.classList.contains('flipped')) return;
+			if (cardEl.classList.contains('matched')) return;
+
+			cardEl.classList.add('flipped');
+			cardEl.querySelector('button').setAttribute('aria-pressed', 'true');
+
+			engine.play(cardEl.dataset.sound);
+
+			if (!first) {
+				first = cardEl;
+				return;
+			}
+
+			second = cardEl;
+			lock = true;
+			moves++;
+			updateChips();
+
+			const isMatch = first.dataset.group === second.dataset.group;
+			if (isMatch) {
+				first.classList.add('matched');
+				second.classList.add('matched');
+				matches++;
+				updateChips();
+				showToast('Match!');
+				first = null; second = null; lock = false;
+
+				if (matches === PAIRS.length) {
+					showToast('You matched them all! 🎉', 1600);
+				}
+			} else {
+				showToast('Try again');
+				setTimeout(() => {
+					first.classList.remove('flipped');
+					second.classList.remove('flipped');
+					first.querySelector('button').setAttribute('aria-pressed', 'false');
+					second.querySelector('button').setAttribute('aria-pressed', 'false');
+					first = null; second = null; lock = false;
+				}, 900);
+			}
+		}
+
+		function newGame() {
+			resetState();
+			deck = makeDeck();
+			render();
+		}
+
+		// Controls
+		newGameBtn.addEventListener('click', () => {
+			newGame();
+			showToast('New game');
+		});
+		muteBtn.addEventListener('click', async () => {
+			await engine.resume();
+			const muted = engine.toggleMute();
+			muteBtn.textContent = muted ? '🔇' : '🔊';
+			muteBtn.setAttribute('aria-pressed', String(muted));
+		});
+		vol.addEventListener('input', async e => {
+			await engine.resume();
+			engine.volume = Number(e.target.value);
+		});
+
+		// Init
+		newGame();
+
+		// Optional: expose to console for tinkering
+		window.soundMatch = { engine, newGame };
+	</script>
+</body>
+</html>
