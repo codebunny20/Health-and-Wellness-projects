@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Unit Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            max-width: 600px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .converter {
+            display: flex;
+            flex-direction: column;
+        }
+        .converter input, .converter select {
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .converter button {
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .result {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        .bot {
+            margin-top: 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            background: #fafafa;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        .bot h2 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+        }
+        .bot .msg {
+            margin: 6px 0;
+        }
+        .bot-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ultimate Unit Converter</h1>
+    <div class="converter">
+        <input type="number" id="value" placeholder="Enter value" />
+        <select id="category">
+            <option value="length">Length</option>
+            <option value="weight">Weight</option>
+            <option value="temperature">Temperature</option>
+            <option value="volume">Volume</option>
+        </select>
+        <select id="unitFrom"></select>
+        <select id="unitTo"></select>
+        <!-- New formatting controls -->
+        <input type="number" id="decimals" min="0" max="10" value="4" placeholder="Decimals" />
+        <label><input type="checkbox" id="thousands" checked /> Use thousands separators</label>
+        <button onclick="convert()">Convert</button>
+        <div class="result" id="result"></div>
+        <div class="bot-controls">
+            <label><input type="checkbox" id="showSteps" /> Explain steps</label>
+            <button type="button" id="clearBot">Clear</button>
+        </div>
+        <div class="bot" id="bot" hidden>
+            <h2>How this result was reached</h2>
+            <div id="botMessages"></div>
+        </div>
+    </div>
+
+    <script>
+        const unitsConfig = {
+            length: {
+                base: 'm',
+                units: {
+                    nm: 1e-9, um: 1e-6, mm: 1e-3, cm: 1e-2, m: 1, km: 1e3,
+                    in: 0.0254, ft: 0.3048, yd: 0.9144, mi: 1609.344
+                }
+            },
+            weight: {
+                base: 'kg',
+                units: {
+                    mg: 1e-6, g: 1e-3, kg: 1, t: 1e3,
+                    oz: 0.028349523125, lb: 0.45359237
+                }
+            },
+            volume: {
+                base: 'L',
+                units: {
+                    mL: 1e-3, L: 1, kL: 1e3,
+                    tsp: 0.00492892159375, tbsp: 0.01478676478125, fl_oz: 0.0295735295625,
+                    cup: 0.24, pt: 0.473176473, qt: 0.946352946, gal: 3.785411784,
+                    m3: 1000
+                }
+            },
+            temperature: {
+                units: ['C', 'F', 'K'],
+                toBase: (val, from) => {
+                    if (from === 'C') return val;
+                    if (from === 'F') return (val - 32) * 5/9;
+                    if (from === 'K') return val - 273.15;
+                    throw new Error('Unsupported temperature unit');
+                },
+                fromBase: (valC, to) => {
+                    if (to === 'C') return valC;
+                    if (to === 'F') return (valC * 9/5) + 32;
+                    if (to === 'K') return valC + 273.15;
+                    throw new Error('Unsupported temperature unit');
+                }
+            }
+        };
+
+        function populateUnits(category) {
+            const unitFrom = document.getElementById('unitFrom');
+            const unitTo = document.getElementById('unitTo');
+            unitFrom.innerHTML = '';
+            unitTo.innerHTML = '';
+
+            if (category === 'temperature') {
+                unitsConfig.temperature.units.forEach(u => {
+                    const opt1 = document.createElement('option');
+                    opt1.value = u; opt1.textContent = u;
+                    unitFrom.appendChild(opt1);
+                    const opt2 = document.createElement('option');
+                    opt2.value = u; opt2.textContent = u;
+                    unitTo.appendChild(opt2);
+                });
+                unitFrom.value = 'C';
+                unitTo.value = 'F';
+                return;
+            }
+
+            const cfg = unitsConfig[category];
+            Object.keys(cfg.units).forEach(u => {
+                const opt1 = document.createElement('option');
+                opt1.value = u; opt1.textContent = u;
+                unitFrom.appendChild(opt1);
+                const opt2 = document.createElement('option');
+                opt2.value = u; opt2.textContent = u;
+                unitTo.appendChild(opt2);
+            });
+
+            const defaults = {
+                length: ['m', 'ft'],
+                weight: ['kg', 'lb'],
+                volume: ['L', 'gal']
+            };
+            const [defFrom, defTo] = defaults[category] || [Object.keys(cfg.units)[0], Object.keys(cfg.units)[1]];
+            unitFrom.value = defFrom;
+            unitTo.value = defTo;
+        }
+
+        // Helper to format numbers: rounding, trimming zeros, separators, scientific for extremes
+        function formatResult(num, decimals = 4, useThousands = true) {
+            if (!isFinite(num)) return String(num);
+            const abs = Math.abs(num);
+
+            // Scientific notation for very small or very large values
+            if ((abs !== 0 && abs < 1e-6) || abs >= 1e9) {
+                return num.toExponential(Math.max(0, Math.min(10, decimals)));
+            }
+
+            // Round to N decimals and trim trailing zeros
+            let str = num.toFixed(Math.max(0, Math.min(10, decimals)));
+            if (str.includes('.')) {
+                str = str.replace(/\.?0+$/, ''); // trim trailing zeros
+            }
+
+            if (!useThousands) return str;
+
+            // Apply thousands separators to integer part only
+            const [intPart, fracPart] = str.split('.');
+            const withSep = new Intl.NumberFormat(undefined, { useGrouping: true, maximumFractionDigits: 0 }).format(Number(intPart));
+            return fracPart ? `${withSep}.${fracPart}` : withSep;
+        }
+
+        // Simple bot helpers
+        function showBotPanel(show) {
+            const bot = document.getElementById('bot');
+            bot.hidden = !show;
+        }
+        function clearBot() {
+            document.getElementById('botMessages').innerHTML = '';
+        }
+        function addBotMessage(text) {
+            const wrap = document.createElement('div');
+            wrap.className = 'msg';
+            wrap.textContent = text;
+            document.getElementById('botMessages').appendChild(wrap);
+        }
+
+        function convert() {
+            const value = parseFloat(document.getElementById('value').value);
+            const category = document.getElementById('category').value;
+            const unitFrom = document.getElementById('unitFrom').value;
+            const unitTo = document.getElementById('unitTo').value;
+            const decimals = parseInt(document.getElementById('decimals').value || '4', 10);
+            const useThousands = document.getElementById('thousands').checked;
+            const explain = document.getElementById('showSteps').checked;
+
+            if (explain) {
+                showBotPanel(true);
+                clearBot();
+            } else {
+                showBotPanel(false);
+            }
+
+            if (isNaN(value)) {
+                document.getElementById('result').innerText = 'Result: Enter a valid number.';
+                if (explain) addBotMessage('Please enter a valid numeric value.');
+                return;
+            }
+
+            try {
+                let result;
+                if (category === 'temperature') {
+                    if (explain) {
+                        addBotMessage(`Category: Temperature`);
+                        if (unitFrom === 'F') {
+                            addBotMessage(`Convert Fahrenheit to Celsius: C = (F − 32) × 5/9`);
+                            addBotMessage(`Compute: C = (${value} − 32) × 5/9`);
+                        } else if (unitFrom === 'K') {
+                            addBotMessage(`Convert Kelvin to Celsius: C = K − 273.15`);
+                            addBotMessage(`Compute: C = ${value} − 273.15`);
+                        } else {
+                            addBotMessage(`Base is Celsius: C = ${value}`);
+                        }
+                    }
+                    const valBase = unitsConfig.temperature.toBase(value, unitFrom);
+                    if (explain) addBotMessage(`Base (Celsius): C = ${valBase}`);
+
+                    if (explain) {
+                        if (unitTo === 'F') {
+                            addBotMessage(`Convert Celsius to Fahrenheit: F = C × 9/5 + 32`);
+                            addBotMessage(`Compute: F = ${valBase} × 9/5 + 32`);
+                        } else if (unitTo === 'K') {
+                            addBotMessage(`Convert Celsius to Kelvin: K = C + 273.15`);
+                            addBotMessage(`Compute: K = ${valBase} + 273.15`);
+                        } else {
+                            addBotMessage(`Target is Celsius: C = ${valBase}`);
+                        }
+                    }
+                    result = unitsConfig.temperature.fromBase(valBase, unitTo);
+                } else {
+                    const cfg = unitsConfig[category];
+                    const factorFrom = cfg.units[unitFrom];
+                    const factorTo = cfg.units[unitTo];
+                    if (factorFrom == null || factorTo == null) {
+                        throw new Error('Unsupported unit for selected category.');
+                    }
+                    if (explain) {
+                        addBotMessage(`Category: ${category} (base: ${cfg.base})`);
+                        addBotMessage(`Definition: 1 ${unitFrom} = ${factorFrom} ${cfg.base}`);
+                        addBotMessage(`Step 1 (to base): baseValue = value × fromFactor`);
+                        addBotMessage(`Compute: baseValue = ${value} × ${factorFrom}`);
+                    }
+                    const inBase = value * factorFrom;
+                    if (explain) addBotMessage(`baseValue = ${inBase} ${cfg.base}`);
+
+                    if (explain) {
+                        addBotMessage(`Definition: 1 ${unitTo} = ${factorTo} ${cfg.base}`);
+                        addBotMessage(`Step 2 (to target): result = baseValue ÷ toFactor`);
+                        addBotMessage(`Compute: result = ${inBase} ÷ ${factorTo}`);
+                    }
+                    result = inBase / factorTo;
+                }
+
+                const formatted = formatResult(result, isNaN(decimals) ? 4 : decimals, useThousands);
+                document.getElementById('result').innerText = `Result: ${formatted}`;
+                if (explain) {
+                    addBotMessage(`Rounded and formatted result: ${formatted}`);
+                }
+            } catch (e) {
+                document.getElementById('result').innerText = `Result: ${e.message}`;
+                if (explain) addBotMessage(`Error: ${e.message}`);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const categoryEl = document.getElementById('category');
+            populateUnits(categoryEl.value);
+            categoryEl.addEventListener('change', () => populateUnits(categoryEl.value));
+
+            // Bot clear handler
+            document.getElementById('clearBot').addEventListener('click', clearBot);
+        });
+    </script>
+</body>
+</html>
