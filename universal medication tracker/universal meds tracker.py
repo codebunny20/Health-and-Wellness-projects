@@ -6,6 +6,24 @@ import datetime
 import customtkinter as ctk
 from tkinter import messagebox  # added
 
+# ---------- THEME & CONSTANTS ----------
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+APP_BG = "#1f2126"
+PANEL_BG = "#23272D"
+LEFT_PANEL_BG = "#262a31"
+CARD_BG = "#2b2f36"
+TEXT_BG = "#343739"
+PRIMARY = "#029CFF"
+PRIMARY_DARK = "#093c5e"
+PRIMARY_BUTTON = "#36719f"
+ACCENT_RED = "#b3261e"
+ACCENT_RED_HOVER = "#7f1914"
+TEXT_MAIN = "#ffffff"
+TEXT_MUTED = "#aaaaaa"
+TEXT_SUBTLE = "#cccccc"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(BASE_DIR, "medication_log.txt")
 JSON_PATH = os.path.join(BASE_DIR, "medication_log.json")
@@ -16,6 +34,88 @@ filtered_type: str | None = None  # for type filtering
 filtered_date_range: str = "Today"  # "Today", "Last 7 days", "All"
 search_text: str = ""  # substring filter (name/notes)
 selected_entry_index: int | None = None  # currently selected entry in med_entries
+status_message_var: ctk.StringVar | None = None  # for status bar
+info_window: ctk.CTkToplevel | None = None  # global handle to info window
+
+
+def set_status(msg: str):
+    """Update status bar text (no-op before UI init)."""
+    global status_message_var
+    if status_message_var is not None:
+        status_message_var.set(msg)
+
+
+def open_info_window():
+    """Show an info window with Help / About / Contribute tabs."""
+    global info_window
+
+    # if already open, just focus it
+    if info_window is not None and info_window.winfo_exists():
+        info_window.focus()
+        return
+
+    info_window = ctk.CTkToplevel(main)
+    info_window.title("Information")
+    info_window.geometry("520x420")
+    info_window.grab_set()  # modal-like behavior
+
+    # close handler to clear global reference
+    def _on_close():
+        global info_window
+        if info_window is not None and info_window.winfo_exists():
+            info_window.destroy()
+        info_window = None
+
+    info_window.protocol("WM_DELETE_WINDOW", _on_close)
+
+    tabview = ctk.CTkTabview(info_window)
+    tabview.pack(fill="both", expand=True, padx=16, pady=16)
+
+    help_tab = tabview.add("Help")
+    about_tab = tabview.add("About")
+    contrib_tab = tabview.add("Contribute")
+
+    help_text = (
+        "Help\n\n"
+        "- Use the left panel to add a new medication entry.\n"
+        "- Entries are saved automatically.\n"
+        "- Click on an entry in the log to select it, then use Edit or Delete.\n"
+        "- Use the filters and search box above the log to narrow results.\n"
+        "- 'Clear filters' resets type, date, and search filters."
+    )
+    about_text = (
+        "About\n\n"
+        "Universal Medication Tracker\n"
+        "A simple personal tool to log and review medication usage.\n\n"
+        "Data is stored locally in:\n"
+        f"- {os.path.basename(JSON_PATH)} (primary JSON store)\n"
+        f"- {os.path.basename(LOG_PATH)} (text export)"
+    )
+    contrib_text = (
+        "Contribute\n\n"
+        "- You can suggest improvements, additional fields, or bug reports.\n"
+        "- Ideas:\n"
+        "  * More medication presets and dose templates\n"
+        "  * Export to CSV or other formats\n"
+        "  * Reminders / scheduling features\n\n"
+        "If you are editing the Python source, you can extend\n"
+        "the UI using customtkinter components."
+    )
+
+    help_box = ctk.CTkTextbox(help_tab, wrap="word")
+    help_box.insert("1.0", help_text)
+    help_box.configure(state="disabled")
+    help_box.pack(fill="both", expand=True, padx=8, pady=8)
+
+    about_box = ctk.CTkTextbox(about_tab, wrap="word")
+    about_box.insert("1.0", about_text)
+    about_box.configure(state="disabled")
+    about_box.pack(fill="both", expand=True, padx=8, pady=8)
+
+    contrib_box = ctk.CTkTextbox(contrib_tab, wrap="word")
+    contrib_box.insert("1.0", contrib_text)
+    contrib_box.configure(state="disabled")
+    contrib_box.pack(fill="both", expand=True, padx=8, pady=8)
 
 
 def format_entry(entry: dict) -> str:
@@ -146,6 +246,7 @@ def add_entry():
     notes_var.set("")
     refresh_log_text()
     update_today_summary()
+    set_status("Entry added.")
 
 
 def append_entry_to_txt(entry: dict):
@@ -160,6 +261,7 @@ def append_entry_to_txt(entry: dict):
             "Save error (TXT)",
             f"Could not append to medication_log.txt:\n{e}",
         )
+        set_status("Error: could not append to TXT log.")
 
 
 def save_all_entries():
@@ -176,6 +278,7 @@ def save_all_entries():
             "Save error (JSON)",
             f"Could not save medication_log.json:\n{e}",
         )
+        set_status("Error: could not save JSON log.")
 
 
 def load_entries_from_json():
@@ -213,6 +316,7 @@ def load_entries_from_json():
             "medication_log.json is corrupted and could not be read.\n"
                     "A new file will be created on next save.",
         )
+        set_status("JSON log was corrupted; starting fresh.")
         return False
     return False
 
@@ -285,6 +389,7 @@ def on_filter_change(choice: str):
     global filtered_type
     filtered_type = choice
     refresh_log_text()
+    set_status(f"Filter set to: {choice}")
 
 
 def on_date_filter_change(choice: str):
@@ -292,6 +397,7 @@ def on_date_filter_change(choice: str):
     global filtered_date_range
     filtered_date_range = choice
     refresh_log_text()
+    set_status(f"Date range: {choice}")
 
 
 def on_search_change(*_args):
@@ -299,6 +405,19 @@ def on_search_change(*_args):
     global search_text
     search_text = search_var.get()
     refresh_log_text()
+
+
+def clear_filters():
+    """Reset type, date and search filters."""
+    global filtered_type, filtered_date_range, search_text
+    filtered_type = None
+    filtered_date_range = "Today"
+    search_text = ""
+    filter_var.set("All types")
+    date_filter_var.set("Today")
+    search_var.set("")
+    refresh_log_text()
+    set_status("Filters cleared.")
 
 
 def on_log_click(event):
@@ -408,6 +527,7 @@ def delete_selected_entry():
     selected_entry_index = None
     selected_label.configure(text="Selected entry: none")
     add_btn.configure(text="Add medication entry", command=add_entry)
+    set_status("Entry deleted.")
 
 
 def edit_selected_entry():
@@ -474,47 +594,115 @@ def edit_selected_entry():
         selected_label.configure(text="Selected entry: none")
         # return button back to normal "Add" behavior
         add_btn.configure(text="Add medication entry", command=add_entry)
+        set_status("Changes saved.")
 
     # Temporarily repurpose the Add button to "Save changes"
     add_btn.configure(text="Save changes", command=apply_changes)
+    set_status("Editing selected entry...")
 
 
+# ---------- MAIN WINDOW & LAYOUT ----------
 main = ctk.CTk()
-main.configure(fg_color="#23272D")
+main.configure(fg_color=APP_BG)
 main.title("Universal Medication Tracker")
-main.geometry("1020x560")
-main.minsize(900, 520)
+# place window at top-left of the primary screen
+main.geometry("1200x600+0+0")
+# ensure window cannot be resized smaller than this minimum
+main.minsize(1050, 560)
+main.update_idletasks()
 
 # configure grid for responsive layout
-main.grid_columnconfigure(0, weight=0)   # left column fixed
-main.grid_columnconfigure(1, weight=1)   # right column grows
-main.grid_rowconfigure(0, weight=1)
+main.grid_columnconfigure(0, weight=1)
+main.grid_rowconfigure(0, weight=0)   # top bar
+main.grid_rowconfigure(1, weight=1)   # main content
+main.grid_rowconfigure(2, weight=0)   # status bar
+
+# --- TOP APP BAR ---
+top_bar = ctk.CTkFrame(main, fg_color=PANEL_BG, corner_radius=0)
+top_bar.grid(row=0, column=0, sticky="ew")
+top_bar.grid_columnconfigure(0, weight=1)
+
+app_title = ctk.CTkLabel(
+    top_bar,
+    text="Universal Medication Tracker",
+    text_color=TEXT_MAIN,
+    font=ctk.CTkFont(size=18, weight="bold"),
+    anchor="w",
+)
+app_title.grid(row=0, column=0, padx=16, pady=8, sticky="w")
+
+info_btn = ctk.CTkButton(
+    top_bar,
+    text="Info",
+    width=70,
+    command=open_info_window,
+    fg_color="#3b434d",
+    hover_color="#4a5563",
+)
+info_btn.grid(row=0, column=1, padx=(4, 4), pady=8, sticky="e")
+
+clear_filters_btn = ctk.CTkButton(
+    top_bar,
+    text="Clear filters",
+    command=clear_filters,
+    width=110,
+    fg_color="#3b434d",
+    hover_color="#4a5563",
+)
+clear_filters_btn.grid(row=0, column=2, padx=(4, 12), pady=8, sticky="e")
+
+# --- MAIN CONTENT FRAME (LEFT + RIGHT) ---
+content_frame = ctk.CTkFrame(master=main, fg_color=APP_BG, corner_radius=0)
+content_frame.grid(row=1, column=0, sticky="nsew")
+content_frame.grid_columnconfigure(0, weight=0)
+content_frame.grid_columnconfigure(1, weight=1)
+content_frame.grid_rowconfigure(0, weight=1)
 
 # === LEFT PANEL ===
-left_panel = ctk.CTkFrame(master=main, fg_color="#2b2f36", corner_radius=0)
+left_panel = ctk.CTkFrame(master=content_frame, fg_color=LEFT_PANEL_BG, corner_radius=0)
 left_panel.grid(row=0, column=0, sticky="nsew")
-left_panel.grid_rowconfigure(3, weight=1)
+left_panel.grid_rowconfigure(2, weight=1)
+left_panel.grid_columnconfigure(0, weight=1)
 
-left_header = ctk.CTkLabel(left_panel, text="New Medication Entry", text_color="#fff", anchor="w")
+left_header = ctk.CTkLabel(
+    left_panel,
+    text="New Medication Entry",
+    text_color=TEXT_MAIN,
+    anchor="w",
+    font=ctk.CTkFont(size=15, weight="bold"),
+)
 left_header.grid(row=0, column=0, padx=16, pady=(16, 4), sticky="ew")
 
+left_sub = ctk.CTkLabel(
+    left_panel,
+    text="Quickly log what you took and when.",
+    text_color=TEXT_MUTED,
+    anchor="w",
+    font=ctk.CTkFont(size=12),
+)
+left_sub.grid(row=1, column=0, padx=16, pady=(0, 4), sticky="ew")
+
 # the frame that holds the entry fields
-frame = ctk.CTkFrame(master=left_panel, fg_color="#23272D")
-frame.grid(row=1, column=0, padx=12, pady=(4, 12), sticky="nsew")
+frame = ctk.CTkFrame(master=left_panel, fg_color=CARD_BG, corner_radius=8)
+frame.grid(row=2, column=0, padx=12, pady=(4, 12), sticky="nsew")
 frame.grid_columnconfigure(0, weight=1)
 
 # Medication type option menu
 option_menu_options = ["Prescribed", "Over-the-counter", "Supplement", "Herbal", "Other"]
 option_menu_var = ctk.StringVar(value="Select medication type")
-option_menu = ctk.CTkOptionMenu(frame, variable=option_menu_var, values=option_menu_options)
+option_menu = ctk.CTkOptionMenu(
+    frame,
+    variable=option_menu_var,
+    values=option_menu_options,
+)
 option_menu.configure(
-    fg_color="#029CFF",
-    text_color="#fff",
+    fg_color=PRIMARY,
+    text_color=TEXT_MAIN,
     corner_radius=5,
-    button_color="#36719f",
-    button_hover_color="#093c5e",
-    dropdown_fg_color="#5C6266",
-    dropdown_text_color="#fff",
+    button_color=PRIMARY_BUTTON,
+    button_hover_color=PRIMARY_DARK,
+    dropdown_fg_color=TEXT_BG,
+    dropdown_text_color=TEXT_MAIN,
     dropdown_hover_color="#2990E4",
 )
 option_menu.grid(row=0, column=0, padx=10, pady=(10, 6), sticky="ew")
@@ -522,21 +710,25 @@ option_menu.grid(row=0, column=0, padx=10, pady=(10, 6), sticky="ew")
 # Time of day option menu
 option_menu1_options = ["Morning", "Afternoon", "Evening", "Night", "As needed"]
 option_menu1_var = ctk.StringVar(value="Select time of day")
-option_menu1 = ctk.CTkOptionMenu(frame, variable=option_menu1_var, values=option_menu1_options)
+option_menu1 = ctk.CTkOptionMenu(
+    frame,
+    variable=option_menu1_var,
+    values=option_menu1_options,
+)
 option_menu1.configure(
-    fg_color="#029CFF",
-    text_color="#fff",
+    fg_color=PRIMARY,
+    text_color=TEXT_MAIN,
     corner_radius=5,
-    button_color="#36719f",
-    button_hover_color="#093c5e",
-    dropdown_fg_color="#5C6266",
-    dropdown_text_color="#fff",
+    button_color=PRIMARY_BUTTON,
+    button_hover_color=PRIMARY_DARK,
+    dropdown_fg_color=TEXT_BG,
+    dropdown_text_color=TEXT_MAIN,
     dropdown_hover_color="#2990E4",
 )
 option_menu1.grid(row=1, column=0, padx=10, pady=6, sticky="ew")
 
 # Medication name
-name_label = ctk.CTkLabel(frame, text="Medication name:")
+name_label = ctk.CTkLabel(frame, text="Medication name", text_color=TEXT_SUBTLE, anchor="w")
 name_label.grid(row=2, column=0, padx=10, pady=(10, 0), sticky="w")
 name_entry = ctk.CTkEntry(frame, placeholder_text="e.g. Ibuprofen")
 name_entry.grid(row=3, column=0, padx=10, pady=(2, 6), sticky="ew")
@@ -567,19 +759,19 @@ medication_menu = ctk.CTkOptionMenu(
     command=on_medication_select,
 )
 medication_menu.configure(
-    fg_color="#029CFF",
-    text_color="#fff",
+    fg_color="#3a78a8",
+    text_color=TEXT_MAIN,
     corner_radius=5,
-    button_color="#36719f",
-    button_hover_color="#093c5e",
-    dropdown_fg_color="#5C6266",
-    dropdown_text_color="#fff",
+    button_color=PRIMARY_BUTTON,
+    button_hover_color=PRIMARY_DARK,
+    dropdown_fg_color=TEXT_BG,
+    dropdown_text_color=TEXT_MAIN,
     dropdown_hover_color="#2990E4",
 )
 medication_menu.grid(row=4, column=0, padx=10, pady=(0, 6), sticky="ew")
 
 # Dose
-dose_label = ctk.CTkLabel(frame, text="Dose:")
+dose_label = ctk.CTkLabel(frame, text="Dose", text_color=TEXT_SUBTLE, anchor="w")
 dose_label.grid(row=5, column=0, padx=10, pady=(6, 0), sticky="w")
 dose_entry = ctk.CTkEntry(frame, placeholder_text="e.g. 200 mg, 1 tablet")
 dose_entry.grid(row=6, column=0, padx=10, pady=(2, 6), sticky="ew")
@@ -615,39 +807,47 @@ dose_menu = ctk.CTkOptionMenu(
     command=on_dose_select,
 )
 dose_menu.configure(
-    fg_color="#029CFF",
-    text_color="#fff",
+    fg_color="#3a78a8",
+    text_color=TEXT_MAIN,
     corner_radius=5,
-    button_color="#36719f",
-    button_hover_color="#093c5e",
-    dropdown_fg_color="#5C6266",
-    dropdown_text_color="#fff",
+    button_color=PRIMARY_BUTTON,
+    button_hover_color=PRIMARY_DARK,
+    dropdown_fg_color=TEXT_BG,
+    dropdown_text_color=TEXT_MAIN,
     dropdown_hover_color="#2990E4",
 )
 dose_menu.grid(row=7, column=0, padx=10, pady=(0, 6), sticky="ew")
 
 # Short notes (optional)
-notes_label = ctk.CTkLabel(frame, text="Notes (optional):")
+notes_label = ctk.CTkLabel(frame, text="Notes (optional)", text_color=TEXT_SUBTLE, anchor="w")
 notes_label.grid(row=8, column=0, padx=10, pady=(6, 0), sticky="w")
 notes_var = ctk.StringVar()
 notes_entry = ctk.CTkEntry(frame, textvariable=notes_var, placeholder_text="e.g. Take with food")
 notes_entry.grid(row=9, column=0, padx=10, pady=(2, 10), sticky="ew")
 
 # Add button
-add_btn = ctk.CTkButton(frame, text="Add medication entry", command=add_entry)
-add_btn.grid(row=10, column=0, padx=10, pady=(0, 10), sticky="ew")
+add_btn = ctk.CTkButton(
+    frame,
+    text="Add medication entry",
+    command=add_entry,
+    fg_color=PRIMARY,
+    hover_color="#2990E4",
+    corner_radius=6,
+)
+add_btn.grid(row=10, column=0, padx=10, pady=(0, 12), sticky="ew")
 
 # Helper label at bottom of left panel
 label2 = ctk.CTkLabel(
     master=left_panel,
     text="Entries are saved to medication_log.json and exported to medication_log.txt",
-    text_color="#aaaaaa",
+    text_color=TEXT_MUTED,
     anchor="w",
+    font=ctk.CTkFont(size=11),
 )
-label2.grid(row=2, column=0, padx=16, pady=(0, 8), sticky="ew")
+label2.grid(row=3, column=0, padx=16, pady=(0, 8), sticky="ew")
 
 # === RIGHT PANEL ===
-right_panel = ctk.CTkFrame(master=main, fg_color="#23272D", corner_radius=0)
+right_panel = ctk.CTkFrame(master=content_frame, fg_color=PANEL_BG, corner_radius=0)
 right_panel.grid(row=0, column=1, sticky="nsew")
 right_panel.grid_columnconfigure(0, weight=1)
 right_panel.grid_rowconfigure(1, weight=1)
@@ -657,10 +857,16 @@ log_header_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
 log_header_frame.grid(row=0, column=0, padx=16, pady=(16, 4), sticky="ew")
 log_header_frame.grid_columnconfigure(0, weight=1)
 
-label1 = ctk.CTkLabel(log_header_frame, text="Medication Log", text_color="#fff", anchor="w")
+label1 = ctk.CTkLabel(
+    log_header_frame,
+    text="Medication Log",
+    text_color=TEXT_MAIN,
+    anchor="w",
+    font=ctk.CTkFont(size=15, weight="bold"),
+)
 label1.grid(row=0, column=0, sticky="w")
 
-filter_label = ctk.CTkLabel(log_header_frame, text="Filter by type:", text_color="#cccccc")
+filter_label = ctk.CTkLabel(log_header_frame, text="Type", text_color=TEXT_SUBTLE)
 filter_label.grid(row=0, column=1, padx=(16, 4))
 
 filter_values = ["All types"] + option_menu_options
@@ -672,19 +878,19 @@ filter_menu = ctk.CTkOptionMenu(
     command=on_filter_change,
 )
 filter_menu.configure(
-    fg_color="#029CFF",
-    text_color="#fff",
+    fg_color=PRIMARY,
+    text_color=TEXT_MAIN,
     corner_radius=5,
-    button_color="#36719f",
-    button_hover_color="#093c5e",
-    dropdown_fg_color="#5C6266",
-    dropdown_text_color="#fff",
+    button_color=PRIMARY_BUTTON,
+    button_hover_color=PRIMARY_DARK,
+    dropdown_fg_color=TEXT_BG,
+    dropdown_text_color=TEXT_MAIN,
     dropdown_hover_color="#2990E4",
 )
 filter_menu.grid(row=0, column=2, padx=(4, 0))
 
 # Date filter
-date_filter_label = ctk.CTkLabel(log_header_frame, text="Date:", text_color="#cccccc")
+date_filter_label = ctk.CTkLabel(log_header_frame, text="Date", text_color=TEXT_SUBTLE)
 date_filter_label.grid(row=0, column=3, padx=(16, 4))
 
 date_filter_values = ["Today", "Last 7 days", "All"]
@@ -696,66 +902,108 @@ date_filter_menu = ctk.CTkOptionMenu(
     command=on_date_filter_change,
 )
 date_filter_menu.configure(
-    fg_color="#029CFF",
-    text_color="#fff",
+    fg_color=PRIMARY,
+    text_color=TEXT_MAIN,
     corner_radius=5,
-    button_color="#36719f",
-    button_hover_color="#093c5e",
-    dropdown_fg_color="#5C6266",
-    dropdown_text_color="#fff",
+    button_color=PRIMARY_BUTTON,
+    button_hover_color=PRIMARY_DARK,
+    dropdown_fg_color=TEXT_BG,
+    dropdown_text_color=TEXT_MAIN,
     dropdown_hover_color="#2990E4",
 )
 date_filter_menu.grid(row=0, column=4, padx=(4, 0))
 
 # Search box
-search_label = ctk.CTkLabel(log_header_frame, text="Search:", text_color="#cccccc")
+search_label = ctk.CTkLabel(log_header_frame, text="Search", text_color=TEXT_SUBTLE)
 search_label.grid(row=0, column=5, padx=(16, 4))
 search_var = ctk.StringVar()
 search_var.trace_add("write", on_search_change)
-search_entry = ctk.CTkEntry(log_header_frame, textvariable=search_var, placeholder_text="name or notes")
+search_entry = ctk.CTkEntry(
+    log_header_frame,
+    textvariable=search_var,
+    placeholder_text="name or notes",
+    width=160,
+)
 search_entry.grid(row=0, column=6, padx=(0, 4))
 
 # Log frame
-frame1 = ctk.CTkFrame(master=right_panel, fg_color="#23272D")
+frame1 = ctk.CTkFrame(master=right_panel, fg_color=PANEL_BG)
 frame1.grid(row=1, column=0, padx=16, pady=(4, 8), sticky="nsew")
 frame1.grid_rowconfigure(0, weight=1)
 frame1.grid_columnconfigure(0, weight=1)
 
 text = ctk.CTkTextbox(master=frame1)
-text.configure(fg_color="#343739", text_color="#fff", corner_radius=5)
+text.configure(
+    fg_color=TEXT_BG,
+    text_color=TEXT_MAIN,
+    corner_radius=5,
+    wrap="word",
+)
 text.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
 # bind mouse click to selection handler
 text.bind("<Button-1>", on_log_click)
 
 # Controls under log: count + edit
-controls_frame = ctk.CTkFrame(master=right_panel, fg_color="#23272D")
+controls_frame = ctk.CTkFrame(master=right_panel, fg_color=PANEL_BG)
 controls_frame.grid(row=2, column=0, padx=16, pady=(0, 4), sticky="ew")
 controls_frame.grid_columnconfigure(0, weight=1)
 
-count_label = ctk.CTkLabel(controls_frame, text="Visible entries: 0", text_color="#cccccc", anchor="w")
+count_label = ctk.CTkLabel(
+    controls_frame,
+    text="Visible entries: 0",
+    text_color=TEXT_SUBTLE,
+    anchor="w",
+)
 count_label.grid(row=0, column=0, sticky="w", padx=(8, 4))
 
-edit_btn = ctk.CTkButton(controls_frame, text="Edit selected", width=120, command=edit_selected_entry)
+edit_btn = ctk.CTkButton(
+    controls_frame,
+    text="Edit selected",
+    width=120,
+    command=edit_selected_entry,
+)
 edit_btn.grid(row=0, column=1, padx=4)
 
-delete_btn = ctk.CTkButton(controls_frame, text="Delete selected", width=120, fg_color="#b3261e",
-                           hover_color="#7f1914", command=delete_selected_entry)
+delete_btn = ctk.CTkButton(
+    controls_frame,
+    text="Delete selected",
+    width=120,
+    fg_color=ACCENT_RED,
+    hover_color=ACCENT_RED_HOVER,
+    command=delete_selected_entry,
+)
 delete_btn.grid(row=0, column=2, padx=4)
 
 # show which entry is currently selected
-selected_label = ctk.CTkLabel(controls_frame, text="Selected entry: none", text_color="#aaaaaa", anchor="w")
+selected_label = ctk.CTkLabel(
+    controls_frame,
+    text="Selected entry: none",
+    text_color=TEXT_MUTED,
+    anchor="w",
+)
 selected_label.grid(row=1, column=0, columnspan=3, sticky="w", padx=(8, 4), pady=(2, 0))
 
 # Today summary area
-summary_label = ctk.CTkLabel(right_panel, text="Today's Summary", text_color="#fff", anchor="w")
+summary_label = ctk.CTkLabel(
+    right_panel,
+    text="Today's Summary",
+    text_color=TEXT_MAIN,
+    anchor="w",
+    font=ctk.CTkFont(size=14, weight="bold"),
+)
 summary_label.grid(row=3, column=0, padx=16, pady=(4, 0), sticky="ew")
 
-summary_frame = ctk.CTkFrame(right_panel, fg_color="#23272D")
+summary_frame = ctk.CTkFrame(right_panel, fg_color=PANEL_BG)
 summary_frame.grid(row=4, column=0, padx=16, pady=(4, 16), sticky="ew")
 summary_frame.grid_columnconfigure(0, weight=1)
 
-summary_text = ctk.CTkTextbox(summary_frame, height=60)
-summary_text.configure(fg_color="#343739", text_color="#fff", corner_radius=5)
+summary_text = ctk.CTkTextbox(summary_frame, height=70)
+summary_text.configure(
+    fg_color=TEXT_BG,
+    text_color=TEXT_MAIN,
+    corner_radius=5,
+    wrap="word",
+)
 summary_text.grid(row=0, column=0, padx=8, pady=8, sticky="ew")
 
 # Keyboard shortcut: Enter in notes field adds entry
@@ -763,6 +1011,19 @@ def _on_enter(_event):
     add_btn.invoke()
 
 notes_entry.bind("<Return>", _on_enter)
+
+# --- STATUS BAR ---
+status_message_var = ctk.StringVar(value="Ready.")
+status_bar = ctk.CTkFrame(main, fg_color=PANEL_BG, corner_radius=0)
+status_bar.grid(row=2, column=0, sticky="ew")
+status_label = ctk.CTkLabel(
+    status_bar,
+    textvariable=status_message_var,
+    text_color=TEXT_MUTED,
+    anchor="w",
+    font=ctk.CTkFont(size=10),
+)
+status_label.grid(row=0, column=0, padx=8, pady=2, sticky="w")
 
 # Load existing log and show it
 if not load_entries_from_json():
@@ -772,5 +1033,6 @@ if not load_entries_from_json():
 
 refresh_log_text()
 update_today_summary()
+set_status("Log loaded.")
 
 main.mainloop()
