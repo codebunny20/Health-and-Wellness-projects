@@ -2,6 +2,7 @@
 
 import os
 import customtkinter as ctk
+from datetime import datetime  # <-- add this import
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -188,12 +189,17 @@ def clear_hrt_form():
 def add_hrt_entry():
     """Collect values from form, validate, store, and refresh log."""
     # resolve dropdown + custom
-    date_val = get_effective_value(hrt_date_option, hrt_date_custom_entry)
-    time_val = get_effective_value(hrt_time_option, hrt_time_custom_entry)
+    # date_val = get_effective_value(hrt_date_option, hrt_date_custom_entry)
+    # time_val = get_effective_value(hrt_time_option, hrt_time_custom_entry)
     med_val = get_effective_value(hrt_med_option, hrt_med_custom_entry)
     dose_val = get_effective_value(hrt_dose_option, hrt_dose_custom_entry)
     route_val = hrt_route_option.get().strip()
     notes_val = hrt_notes_textbox.get("0.0", "end").strip()
+
+    # automatically set current date and time
+    now = datetime.now()
+    date_val = now.strftime("%Y-%m-%d")
+    time_val = now.strftime("%H:%M")
 
     # very light validation: require date, medication, and dose
     if not date_val or not med_val or not dose_val:
@@ -276,21 +282,21 @@ hrt_main_frame.grid_columnconfigure(0, weight=1)  # form
 hrt_main_frame.grid_columnconfigure(1, weight=1)  # log
 hrt_main_frame.grid_rowconfigure(0, weight=1)
 
-# ----- Left side: form -----
-hrt_form_frame = ctk.CTkFrame(hrt_main_frame)
-hrt_form_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 20))  # More space between form/log
+# ----- Left side: scrollable form -----
+hrt_form_scroll = ctk.CTkScrollableFrame(
+    hrt_main_frame,
+    fg_color="#2a2a2a",
+)
+hrt_form_scroll.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
 
-for i in range(10):
-    hrt_form_frame.grid_rowconfigure(i, weight=0)
-hrt_form_frame.grid_rowconfigure(10, weight=1)
-hrt_form_frame.grid_columnconfigure(0, weight=0)
-hrt_form_frame.grid_columnconfigure(1, weight=1)
+hrt_form_scroll.grid_columnconfigure(0, weight=0)
+hrt_form_scroll.grid_columnconfigure(1, weight=1)
 
 # Date (dropdown + custom)
-hrt_date_label = ctk.CTkLabel(hrt_form_frame, text="Date:", font=DEFAULT_FONT)
+hrt_date_label = ctk.CTkLabel(hrt_form_scroll, text="Date:", font=DEFAULT_FONT)
 hrt_date_label.grid(row=0, column=0, padx=5, pady=(10, 2), sticky="w")
 
-hrt_date_container = ctk.CTkFrame(hrt_form_frame, fg_color="transparent")
+hrt_date_container = ctk.CTkFrame(hrt_form_scroll, fg_color="transparent")
 hrt_date_container.grid(row=0, column=1, padx=5, pady=(10, 2), sticky="ew")
 hrt_date_container.grid_columnconfigure(0, weight=1)
 hrt_date_container.grid_columnconfigure(1, weight=0)
@@ -318,10 +324,10 @@ hrt_date_custom_entry = ctk.CTkEntry(
 hrt_date_custom_entry.grid(row=0, column=1, sticky="ew")
 
 # Time (dropdown + custom)
-hrt_time_label = ctk.CTkLabel(hrt_form_frame, text="Time:", font=DEFAULT_FONT)
+hrt_time_label = ctk.CTkLabel(hrt_form_scroll, text="Time:", font=DEFAULT_FONT)
 hrt_time_label.grid(row=1, column=0, padx=5, pady=2, sticky="w")
 
-hrt_time_container = ctk.CTkFrame(hrt_form_frame, fg_color="transparent")
+hrt_time_container = ctk.CTkFrame(hrt_form_scroll, fg_color="transparent")
 hrt_time_container.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
 hrt_time_container.grid_columnconfigure(0, weight=1)
 hrt_time_container.grid_columnconfigure(1, weight=0)
@@ -350,10 +356,10 @@ hrt_time_custom_entry = ctk.CTkEntry(
 hrt_time_custom_entry.grid(row=0, column=1, sticky="ew")
 
 # Medication name (dropdown + custom)
-hrt_med_label = ctk.CTkLabel(hrt_form_frame, text="Medication / preparation:", font=DEFAULT_FONT)
+hrt_med_label = ctk.CTkLabel(hrt_form_scroll, text="Medication / preparation:", font=DEFAULT_FONT)
 hrt_med_label.grid(row=2, column=0, padx=5, pady=2, sticky="w")
 
-hrt_med_container = ctk.CTkFrame(hrt_form_frame, fg_color="transparent")
+hrt_med_container = ctk.CTkFrame(hrt_form_scroll, fg_color="transparent")
 hrt_med_container.grid(row=2, column=1, padx=5, pady=2, sticky="ew")
 hrt_med_container.grid_columnconfigure(0, weight=1)
 hrt_med_container.grid_columnconfigure(1, weight=0)
@@ -382,10 +388,10 @@ hrt_med_custom_entry = ctk.CTkEntry(
 hrt_med_custom_entry.grid(row=0, column=1, sticky="ew")
 
 # Dose (dropdown + custom)
-hrt_dose_label = ctk.CTkLabel(hrt_form_frame, text="Dose:", font=DEFAULT_FONT)
+hrt_dose_label = ctk.CTkLabel(hrt_form_scroll, text="Dose:", font=DEFAULT_FONT)
 hrt_dose_label.grid(row=3, column=0, padx=5, pady=2, sticky="w")
 
-hrt_dose_container = ctk.CTkFrame(hrt_form_frame, fg_color="transparent")
+hrt_dose_container = ctk.CTkFrame(hrt_form_scroll, fg_color="transparent")
 hrt_dose_container.grid(row=3, column=1, padx=5, pady=2, sticky="ew")
 hrt_dose_container.grid_columnconfigure(0, weight=1)
 hrt_dose_container.grid_columnconfigure(1, weight=0)
@@ -413,10 +419,10 @@ hrt_dose_custom_entry = ctk.CTkEntry(
 hrt_dose_custom_entry.grid(row=0, column=1, sticky="ew")
 
 # Route
-hrt_route_label = ctk.CTkLabel(hrt_form_frame, text="Route:", font=DEFAULT_FONT)
+hrt_route_label = ctk.CTkLabel(hrt_form_scroll, text="Route:", font=DEFAULT_FONT)
 hrt_route_label.grid(row=4, column=0, padx=5, pady=2, sticky="w")
 hrt_route_option = ctk.CTkOptionMenu(
-    hrt_form_frame,
+    hrt_form_scroll,
     values=[
         "Pill / Oral",
         "Sublingual / Buccal",
@@ -433,15 +439,14 @@ hrt_route_option.grid(row=4, column=1, padx=5, pady=2, sticky="ew")
 hrt_route_option.set("Pill / Oral")
 
 # Notes
-hrt_notes_label = ctk.CTkLabel(hrt_form_frame, text="Notes (optional):", font=DEFAULT_FONT)
+hrt_notes_label = ctk.CTkLabel(hrt_form_scroll, text="Notes (optional):", font=DEFAULT_FONT)
 hrt_notes_label.grid(row=5, column=0, padx=5, pady=(10, 2), sticky="w")
-hrt_notes_textbox = ctk.CTkTextbox(hrt_form_frame, height=120, font=DEFAULT_FONT)
-hrt_notes_textbox.grid(row=5, column=0, columnspan=2, padx=10, pady=(0, 15), sticky="nsew")  # More padding
+hrt_notes_textbox = ctk.CTkTextbox(hrt_form_scroll, height=120, font=DEFAULT_FONT)
+hrt_notes_textbox.grid(row=5, column=0, columnspan=2, padx=10, pady=(0, 15), sticky="nsew")
 
 # Buttons
-hrt_buttons_frame = ctk.CTkFrame(hrt_form_frame, fg_color="transparent")
-hrt_buttons_frame.grid(row=6, column=0, columnspan=2, pady=(10, 15), sticky="e")  # More space above/below buttons
-
+hrt_buttons_frame = ctk.CTkFrame(hrt_form_scroll, fg_color="transparent")
+hrt_buttons_frame.grid(row=6, column=0, columnspan=2, pady=(10, 15), sticky="e")
 hrt_add_button = ctk.CTkButton(
     hrt_buttons_frame,
     text="Add Entry",
@@ -449,7 +454,6 @@ hrt_add_button = ctk.CTkButton(
     command=add_hrt_entry,
 )
 hrt_add_button.pack(side="right", padx=5)
-
 hrt_clear_button = ctk.CTkButton(
     hrt_buttons_frame,
     text="Clear Form",
@@ -462,13 +466,13 @@ hrt_clear_button.pack(side="right", padx=5)
 
 # Delete entry by index
 hrt_delete_label = ctk.CTkLabel(
-    hrt_form_frame,
+    hrt_form_scroll,
     text="Delete entry # (see log on the right):",
     font=("Segoe UI", 11),
 )
 hrt_delete_label.grid(row=7, column=0, padx=5, pady=(5, 2), sticky="w")
 hrt_delete_index = ctk.CTkEntry(
-    hrt_form_frame,
+    hrt_form_scroll,
     width=60,
     font=DEFAULT_FONT,
     placeholder_text="1",
@@ -476,7 +480,7 @@ hrt_delete_index = ctk.CTkEntry(
 hrt_delete_index.grid(row=7, column=1, padx=5, pady=(5, 2), sticky="w")
 
 hrt_delete_button = ctk.CTkButton(
-    hrt_form_frame,
+    hrt_form_scroll,
     text="Delete",
     font=("Segoe UI", 11),
     fg_color="#b3261e",
