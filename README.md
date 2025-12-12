@@ -3,10 +3,6 @@
 A collection of projects focused on improving health, wellness, and lifestyle habits.  
 This workspace is intended for experimenting with tools, apps, and content that help users track, understand, and improve their physical and mental well‑being.
 
-> Note: Adapt all sections (features, stack, setup) to match the actual projects in this folder.
-
----
-
 ## Table of Contents
 
 - [Overview](#overview)
@@ -31,11 +27,11 @@ This workspace is intended for experimenting with tools, apps, and content that 
 
 This repository (folder) is a central place for experiments and tools related to:
 
-- Daily habit tracking
-- Nutrition and hydration logging
-- Fitness and exercise planning
-- Sleep and recovery monitoring
-- Mindfulness and stress‑management practices
+- A personal safe, protected, and private journal
+- Medication logging
+- HRT Tracking
+- Sleep and recovery monitoring coming soon............................
+- Mindfulness and stress‑management practices coming soon........................
 
 You can use it as:
 
@@ -49,24 +45,28 @@ You can use it as:
 
 The main objectives of these projects are to:
 
-1. Make it easier to **measure** health and wellness behaviors (e.g., steps, workouts, sleep).
+1. Make it easier to **measure** health and wellness (e.g., medication, keeping notes, and others).
 2. Provide **simple insights** and feedback (e.g., weekly trends, streaks, goals).
 3. Encourage **sustainable habits**, not short‑term fixes.
 4. Keep **data ownership** with the user where possible.
+5. And much more as I add projects.
 
-You can customize this section with your specific goals, such as:
+Future specific goals, such as:
 
 - Building a personal dashboard
 - Integrating with wearables (Fitbit, Apple Health, Google Fit)
-- Running data analysis on exported health data
+- Running data analysis on exported health data (but as always keep user data private, i had this in mind mor for the elderly)
 - Creating educational content around wellness topics
 
 ---
 
 ## Features
 
-Current and planned features may include:
-
+### Current features
+HRT Tracker
+Personal Journal
+Universal Medication Tracker
+### Future features
 - **Habit Tracker**
   - Customizable habit list (e.g., water intake, steps, reading, meditation)
   - Daily check‑ins and streak tracking
