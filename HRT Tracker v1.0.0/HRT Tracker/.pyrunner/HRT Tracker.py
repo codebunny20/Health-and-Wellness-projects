@@ -7,9 +7,53 @@ from datetime import datetime, timedelta
 import ctypes
 from ctypes import wintypes
 import uuid
+from tkinter import filedialog  # new: for export path dialog
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# --- paths that also work in a frozen exe (PyInstaller, etc.) ---
+def _get_base_dir() -> str:
+    # If frozen by a packer, sys._MEIPASS or sys.executable may be the right base.
+    try:
+        import sys
+
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            return sys._MEIPASS
+        if getattr(sys, "frozen", False):
+            return os.path.dirname(sys.executable)
+    except Exception:
+        pass
+    return os.path.dirname(os.path.abspath(__file__))
+
+# New: separate install dir (where code/exe lives) from data dir (where JSON lives)
+APP_INSTALL_DIR = _get_base_dir()
+
+def _get_app_data_dir() -> str:
+    """
+    Return a per-user writable directory for HRT Tracker data.
+    On Windows, prefer %APPDATA%\HRT Tracker.
+    Fall back to the install directory if anything goes wrong.
+    """
+    try:
+        # Typical Windows roaming appdata path
+        appdata_root = os.environ.get("APPDATA")
+        if appdata_root:
+            data_dir = os.path.join(appdata_root, "HRT Tracker")
+        else:
+            # Fallback to user home if APPDATA is missing
+            home = os.path.expanduser("~")
+            data_dir = os.path.join(home, ".hrt_tracker")
+
+        os.makedirs(data_dir, exist_ok=True)
+        return data_dir
+    except Exception:
+        # As a last resort, use the install dir (may be read-only in some cases)
+        return APP_INSTALL_DIR
+
+APP_DATA_DIR = _get_app_data_dir()
+
+# All persistent JSON is stored in APP_DATA_DIR, not next to the EXE
+BASE_DIR = APP_DATA_DIR
 DATA_FILE = os.path.join(BASE_DIR, "hrt_entries.json")
+SETTINGS_FILE = os.path.join(BASE_DIR, "hrt_settings.json")
 
 DATA_VERSION = 2
 
@@ -26,6 +70,27 @@ editing_index: int | None = None  # index into hrt_entries we’re replacing
 MED_PRESETS = ["Estradiol", "Progesterone", "Spironolactone", "Testosterone", "Blocker combo", "Custom"]
 DOSE_PRESETS = ["0.5 mg", "1 mg", "2 mg", "3 mg", "4 mg", "5 mg", "10 mg", "Custom"]
 TIME_OF_DAY_PRESETS = ["Now", "Morning", "Afternoon", "Evening", "Night"]
+
+# ---------------- settings persistence ----------------
+def load_settings() -> dict:
+    """Load app settings from disk; return dict with safe defaults."""
+    if not os.path.exists(SETTINGS_FILE):
+        return {}
+    try:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+def save_settings(settings: dict):
+    """Persist app settings to disk; ignore failures."""
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 def _validate_entry_dict(raw) -> dict | None:
     """Validate a single entry dict from disk, return cleaned version or None."""
@@ -526,12 +591,81 @@ def snap_window_to_top_left(root):
     root.geometry(f"{width}x{height}+{left}+{top}")
     root.update_idletasks()
 
+# ---------------- export of logs ----------------
+def export_visible_logs_to_csv():
+    """Export currently visible (filtered) entries to a CSV file."""
+    if not filtered_hrt_entries:
+        safe_show_error("No entries to export. Adjust filters or add entries first.")
+        return
+
+    # Ask user where to save
+    try:
+        default_name = f"hrt_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        file_path = filedialog.asksaveasfilename(
+            parent=wellness_tracker_app,
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            initialfile=default_name,
+            title="Export HRT log to CSV",
+        )
+    except Exception as exc:
+        safe_show_error(f"Could not open save dialog:\n{exc!r}")
+        return
+
+    if not file_path:
+        return  # user cancelled
+
+    # Very small CSV writer without extra deps
+    headers = ["date", "time", "med", "dose", "route", "notes"]
+    try:
+        with open(file_path, "w", encoding="utf-8", newline="") as f:
+            f.write(",".join(headers) + "\n")
+            for e in filtered_hrt_entries:
+                row = []
+                for key in headers:
+                    val = str(e.get(key, "")).replace('"', '""')
+                    # wrap in quotes, escape quotes inside
+                    row.append(f'"{val}"')
+                f.write(",".join(row) + "\n")
+    except Exception as exc:
+        safe_show_error(f"Failed to export CSV:\n{exc!r}")
+
 # --- UI SETUP ---
 wellness_tracker_app = ctk.CTk()
 wellness_tracker_app.configure(fg_color="#23272D")
 wellness_tracker_app.title("HRT Tracker")
-wellness_tracker_app.geometry("900x600")
-wellness_tracker_app.minsize(900, 600)
+# Increase default startup size so components are visible without fullscreen
+wellness_tracker_app.geometry("1300x800")
+# keep a reasonable minimum so user can still resize smaller but not hide UI
+wellness_tracker_app.minsize(1300, 800)
+
+# restore geometry from settings if available
+_settings_cache = load_settings()
+try:
+    geom = _settings_cache.get("window_geometry")
+    if isinstance(geom, str) and "x" in geom and "+" in geom:
+        # enforce a sensible minimum when restoring saved geometry
+        try:
+            min_w, min_h = 1000, 700
+            size_part = geom.split("+")[0]
+            w_str, h_str = size_part.split("x")
+            w, h = int(w_str), int(h_str)
+            if w < min_w or h < min_h:
+                # if saved geometry is too small, use the minimum size and keep saved position if possible
+                # fall back to top-left if position parse fails
+                try:
+                    pos_part = geom.split("+", 1)[1]
+                    # keep saved position if present
+                    wellness_tracker_app.geometry(f"{min_w}x{min_h}+{pos_part}")
+                except Exception:
+                    wellness_tracker_app.geometry(f"{min_w}x{min_h}+0+0")
+            else:
+                wellness_tracker_app.geometry(geom)
+        except Exception:
+            wellness_tracker_app.geometry(f"{min_w}x{min_h}+0+0")
+except Exception:
+    pass
+
 snap_window_to_top_left(wellness_tracker_app)
 
 all_tabs = ctk.CTkTabview(wellness_tracker_app)
@@ -674,6 +808,11 @@ ctk.CTkButton(filters_frame, text="Clear", width=70, fg_color="#555555", command
     row=1, column=5, padx=(2, 4), pady=2
 )
 
+# new: export button (right side of filters_frame)
+ctk.CTkButton(filters_frame, text="Export visible logs", width=130, command=export_visible_logs_to_csv).grid(
+    row=0, column=4, columnspan=2, padx=(12, 4), pady=2, sticky="e"
+)
+
 header_frame = ctk.CTkFrame(table_frame, fg_color="transparent")
 header_frame.pack(fill="x", padx=4)
 
@@ -706,6 +845,21 @@ delete_button = ctk.CTkButton(
 )
 delete_button.pack(side="right", padx=4, pady=4)
 
+# ---------------- restore filters from settings ----------------
+try:
+    if isinstance(_settings_cache, dict):
+        txt = _settings_cache.get("filter_text", "")
+        frm = _settings_cache.get("filter_from", "")
+        to = _settings_cache.get("filter_to", "")
+        if txt:
+            filter_text_entry.insert(0, txt)
+        if frm:
+            filter_from_entry.insert(0, frm)
+        if to:
+            filter_to_entry.insert(0, to)
+except Exception:
+    pass
+
 set_today()
 time_entry.delete(0, "end")
 time_entry.insert(0, datetime.now().strftime("%H:%M"))
@@ -715,4 +869,20 @@ _rebuild_med_rows()
 load_hrt_entries()
 apply_filters_and_refresh()
 
+# ---------------- save settings on close ----------------
+def _on_close():
+    try:
+        settings = {
+            "window_geometry": wellness_tracker_app.geometry(),
+            "filter_text": filter_text_entry.get().strip(),
+            "filter_from": filter_from_entry.get().strip(),
+            "filter_to": filter_to_entry.get().strip(),
+            # you can add more settings here later
+        }
+        save_settings(settings)
+    except Exception:
+        pass
+    wellness_tracker_app.destroy()
+
+wellness_tracker_app.protocol("WM_DELETE_WINDOW", _on_close)
 wellness_tracker_app.mainloop()
