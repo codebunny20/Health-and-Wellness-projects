@@ -11,18 +11,41 @@ import ctypes  # added for monitor detection
 from ctypes import Structure, c_long, c_ulong, byref  # added
 import platform  # NEW: environment info for bug reports
 from urllib.parse import quote  # NEW: encode subject/body for Gmail compose links
+import calendar  # NEW: calendar popup support
+
+# NEW: choose a stable per-user application data directory
+def _get_app_data_dir():
+    """
+    Return a per-user writable app data directory that works for a packaged exe.
+    Falls back to the script directory if anything goes wrong.
+    """
+    try:
+        # Prefer APPDATA on Windows (e.g. C:\Users\...\AppData\Roaming)
+        base = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
+        if not base:
+            # Cross-platform fallback
+            base = os.path.expanduser("~")
+        app_dir = Path(base) / "HRT Tracker"
+        app_dir.mkdir(parents=True, exist_ok=True)
+        return app_dir
+    except Exception:
+        # Last resort: directory where this file lives
+        return Path(__file__).resolve().parent
+
+# Use per-user application data dir for JSON files
+APP_DATA_DIR = _get_app_data_dir()
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_FILE = str(BASE_DIR / "hrt_entries.json")
-RESOURCES_FILE = str(BASE_DIR / "hrt_resources.json")
-SETTINGS_FILE = str(BASE_DIR / "hrt_settings.json")
+DATA_FILE = str(APP_DATA_DIR / "hrt_entries.json")
+RESOURCES_FILE = str(APP_DATA_DIR / "hrt_resources.json")
+SETTINGS_FILE = str(APP_DATA_DIR / "hrt_settings.json")
 
 # NEW: files for bug reports and contribution plans
-BUGS_FILE = str(BASE_DIR / "hrt_bug_reports.json")
-CONTRIB_FILE = str(BASE_DIR / "hrt_contributions.json")
+BUGS_FILE = str(APP_DATA_DIR / "hrt_bug_reports.json")
+CONTRIB_FILE = str(APP_DATA_DIR / "hrt_contributions.json")
 
 
 # ------------------------ Utilities ------------------------
@@ -284,6 +307,129 @@ class BasePage(ctk.CTkFrame):
 
 # ------------------------ HRT Log Page ------------------------
 
+# NEW: simple calendar popup for date selection
+class CalendarPopup(ctk.CTkToplevel):
+    def __init__(self, master, select_callback, init_date=None, date_format="%Y-%m-%d"):
+        super().__init__(master)
+        try:
+            self.transient(master)
+        except Exception:
+            pass
+        try:
+            self.grab_set()
+        except Exception:
+            pass
+        self.select_callback = select_callback
+        self.date_format = date_format
+        self.title("Select date")
+        self.resizable(False, False)
+        self.init_date = init_date or date.today()
+        self.current_year = self.init_date.year
+        self.current_month = self.init_date.month
+
+        calendar.setfirstweekday(calendar.MONDAY)
+
+        header = ctk.CTkFrame(self)
+        header.pack(padx=8, pady=(8,4), fill="x")
+        prev_btn = ctk.CTkButton(header, text="<", width=36, command=self._prev_month)
+        prev_btn.pack(side="left")
+        self.month_lbl = ctk.CTkLabel(header, text="", anchor="center")
+        self.month_lbl.pack(side="left", expand=True)
+        next_btn = ctk.CTkButton(header, text=">", width=36, command=self._next_month)
+        next_btn.pack(side="right")
+
+        days_frame = ctk.CTkFrame(self)
+        days_frame.pack(padx=8, pady=(4,8))
+        # weekday labels
+        wkdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        lbl_row = ctk.CTkFrame(days_frame)
+        lbl_row.pack(fill="x")
+        for d in wkdays:
+            ctk.CTkLabel(lbl_row, text=d, width=40).pack(side="left", padx=2)
+
+        self.grid_frame = ctk.CTkFrame(days_frame)
+        self.grid_frame.pack()
+
+        ctl_row = ctk.CTkFrame(self)
+        ctl_row.pack(fill="x", padx=8, pady=(0,8))
+        ctk.CTkButton(ctl_row, text="Cancel", command=self._cancel).pack(side="right")
+
+        self._render_month()
+
+    def _render_month(self):
+        # update month label and grid
+        try:
+            for w in self.grid_frame.winfo_children():
+                w.destroy()
+        except Exception:
+            pass
+        try:
+            mname = f"{calendar.month_name[self.current_month]} {self.current_year}"
+            self.month_lbl.configure(text=mname)
+        except Exception:
+            pass
+        try:
+            weeks = calendar.monthcalendar(self.current_year, self.current_month)
+            for wr in weeks:
+                row = ctk.CTkFrame(self.grid_frame)
+                row.pack(fill="x")
+                for day in wr:
+                    if day == 0:
+                        ctk.CTkLabel(row, text="", width=40).pack(side="left", padx=2, pady=2)
+                    else:
+                        d_btn = ctk.CTkButton(
+                            row,
+                            text=str(day),
+                            width=40,
+                            command=lambda dd=day: self._select_day(dd)
+                        )
+                        d_btn.pack(side="left", padx=2, pady=2)
+        except Exception:
+            pass
+
+    def _select_day(self, day):
+        try:
+            chosen = date(self.current_year, self.current_month, day)
+            s = chosen.strftime(self.date_format)
+            try:
+                self.select_callback(s)
+            except Exception:
+                pass
+        finally:
+            try:
+                self.grab_release()
+            except Exception:
+                pass
+            try:
+                self.destroy()
+            except Exception:
+                pass
+
+    def _prev_month(self):
+        self.current_month -= 1
+        if self.current_month < 1:
+            self.current_month = 12
+            self.current_year -= 1
+        self._render_month()
+
+    def _next_month(self):
+        self.current_month += 1
+        if self.current_month > 12:
+            self.current_month = 1
+            self.current_year += 1
+        self._render_month()
+
+    def _cancel(self):
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+
 class HRTLogPage(BasePage):
     def __init__(self, master, controller):
         super().__init__(master, controller)
@@ -309,12 +455,22 @@ class HRTLogPage(BasePage):
         ctk.CTkLabel(date_row, text="Date:").pack(side="left", padx=(0, 6))
         self.date_entry = ctk.CTkEntry(date_row, placeholder_text="YYYY-MM-DD (or format set in Settings)")
         self.date_entry.pack(side="left", fill="x", expand=True)
+        # NEW: calendar button to choose dates
+        cal_btn = ctk.CTkButton(date_row, text="📅", width=40, command=self.open_calendar)
+        cal_btn.pack(side="left", padx=(6, 0))
 
         time_row = ctk.CTkFrame(form_frame)
         time_row.pack(fill="x", pady=(0, 4))
         ctk.CTkLabel(time_row, text="Time:").pack(side="left", padx=(0, 6))
         self.time_entry = ctk.CTkEntry(time_row, placeholder_text="HH:MM (optional)")
         self.time_entry.pack(side="left", fill="x", expand=True)
+
+        # NEW: Title row for entries
+        title_row = ctk.CTkFrame(form_frame)
+        title_row.pack(fill="x", pady=(0, 4))
+        ctk.CTkLabel(title_row, text="Title:").pack(side="left", padx=(0, 6))
+        self.title_entry = ctk.CTkEntry(title_row, placeholder_text="Short title (optional)")
+        self.title_entry.pack(side="left", fill="x", expand=True)
 
         try:
             now = datetime.now()
@@ -558,6 +714,12 @@ class HRTLogPage(BasePage):
     def save_entry(self):
         date_text = self.date_entry.get().strip()
         time_text = self.time_entry.get().strip()
+        title_text = ""
+        try:
+            title_text = self.title_entry.get().strip()
+        except Exception:
+            title_text = ""
+
         if not date_text:
             date_text = datetime.now().strftime(self.controller.settings.get("date_format", "%Y-%m-%d"))
         if not time_text:
@@ -605,6 +767,7 @@ class HRTLogPage(BasePage):
 
         entry = {
             "timestamp": timestamp,
+            "title": title_text,
             "regimen": ", ".join(m.get("name", "") for m in meds) if meds else "",
             "route": "",
             "dose": "",
@@ -626,6 +789,10 @@ class HRTLogPage(BasePage):
 
         self.date_entry.delete(0, "end")
         self.time_entry.delete(0, "end")
+        try:
+            self.title_entry.delete(0, "end")
+        except Exception:
+            pass
         for r in list(self.med_rows):
             try:
                 r["frame"].destroy()
@@ -709,6 +876,42 @@ class HRTLogPage(BasePage):
         except Exception:
             pass
         super().focus_first()
+
+    # NEW: open calendar popup for date selection
+    def open_calendar(self):
+        try:
+            # parse current date in entry as fallback initial date
+            cur = self.date_entry.get().strip()
+            init = None
+            try:
+                if cur:
+                    # try using configured date_format first
+                    df = self.controller.settings.get("date_format", "%Y-%m-%d")
+                    try:
+                        init_dt = datetime.strptime(cur, df)
+                        init = init_dt.date()
+                    except Exception:
+                        try:
+                            # try ISO or common formats
+                            init_dt = datetime.fromisoformat(cur)
+                            init = init_dt.date()
+                        except Exception:
+                            init = None
+            except Exception:
+                init = None
+
+            def _on_select(selected_str):
+                try:
+                    # place formatted date in entry using settings' date_format
+                    self.date_entry.delete(0, "end")
+                    self.date_entry.insert(0, selected_str)
+                except Exception:
+                    pass
+
+            # show popup
+            CalendarPopup(self, _on_select, init_date=init, date_format=self.controller.settings.get("date_format", "%Y-%m-%d"))
+        except Exception:
+            pass
 
 
 # ------------------------ History Page ------------------------
@@ -858,13 +1061,18 @@ class HistoryPage(BasePage):
             self.display_entries.append(entry)
             meds = entry.get("medications")
             label_ts = entry.get("timestamp", "")
-            if meds and isinstance(meds, list) and meds:
+            # prefer a user-provided title for list label if present
+            title = (entry.get("title") or "").strip()
+            if title:
+                label_text = title
+            elif meds and isinstance(meds, list) and meds:
                 first = meds[0]
                 first_name = first.get("name") if isinstance(first, dict) else str(first)
-                btn_label = f"{label_ts} – {first_name}"
+                label_text = first_name
             else:
                 regimen = entry.get("regimen", "") or ""
-                btn_label = f"{label_ts} – {regimen[:40]}"
+                label_text = regimen[:40]
+            btn_label = f"{label_ts} – {label_text[:40]}"
             btn = ctk.CTkButton(
                 self.list_frame,
                 text=btn_label,
@@ -886,7 +1094,8 @@ class HistoryPage(BasePage):
 
         self.selected_index = index
         self.detail_box.delete("1.0", "end")
-        order = ["timestamp", "regimen", "route", "dose", "mood", "symptoms", "notes"]
+        # include title early in details
+        order = ["timestamp", "title", "regimen", "route", "dose", "mood", "symptoms", "notes"]
         meds = entry.get("medications")
         if meds and isinstance(meds, list):
             self.detail_box.insert("end", "Medications:\n")
@@ -912,7 +1121,9 @@ class HistoryPage(BasePage):
                 continue
             value = entry.get(key, "")
             if value:
-                self.detail_box.insert("end", f"{key.capitalize()}: {value}\n")
+                # prettify the key label for display
+                display_key = "Title" if key == "title" else key.capitalize()
+                self.detail_box.insert("end", f"{display_key}: {value}\n")
         for key, value in entry.items():
             if key not in order and key != "medications":
                 self.detail_box.insert("end", f"{key.capitalize()}: {value}\n")
@@ -1904,8 +2115,9 @@ class BugReportPage(BasePage):
             if not body:
                 body = self._build_template(summary)
             subj = f"Bug report: {summary}"
-            # Gmail compose URL (recipient left empty so user can add email later)
-            url = f"https://mail.google.com/mail/?view=cm&fs=1&su={quote(subj)}&body={quote(body)}"
+            # Gmail compose URL with recipient prefilled
+            recipient = "bunnycontact.me@gmail.com"
+            url = f"https://mail.google.com/mail/?view=cm&fs=1&to={quote(recipient)}&su={quote(subj)}&body={quote(body)}"
             webbrowser.open(url)
             self.controller.show_status("Opened Gmail compose (add recipient and send).")
         except Exception as e:
@@ -2374,3 +2586,4 @@ class HRTTrackerApp(ctk.CTk):
 if __name__ == "__main__":
     app = HRTTrackerApp()
     app.mainloop()
+
