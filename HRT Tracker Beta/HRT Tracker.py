@@ -7,6 +7,10 @@ from tkinter import messagebox
 from pathlib import Path
 import webbrowser
 from tkinter import filedialog
+import ctypes  # added for monitor detection
+from ctypes import Structure, c_long, c_ulong, byref  # added
+import platform  # NEW: environment info for bug reports
+from urllib.parse import quote  # NEW: encode subject/body for Gmail compose links
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -15,6 +19,10 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = str(BASE_DIR / "hrt_entries.json")
 RESOURCES_FILE = str(BASE_DIR / "hrt_resources.json")
 SETTINGS_FILE = str(BASE_DIR / "hrt_settings.json")
+
+# NEW: files for bug reports and contribution plans
+BUGS_FILE = str(BASE_DIR / "hrt_bug_reports.json")
+CONTRIB_FILE = str(BASE_DIR / "hrt_contributions.json")
 
 
 # ------------------------ Utilities ------------------------
@@ -194,6 +202,59 @@ def save_settings(settings):
     save_json(SETTINGS_FILE, settings)
 
 
+# --- New: monitor / position helpers (Windows, safe fallback) ---
+def _get_monitor_top_left_for_pointer():
+    """
+    Return (left, top) of work area for the monitor nearest the current cursor.
+    Returns (0,0) on failure or non-Windows systems.
+    """
+    try:
+        # Define structures
+        class POINT(Structure):
+            _fields_ = [("x", c_long), ("y", c_long)]
+
+        class RECT(Structure):
+            _fields_ = [("left", c_long), ("top", c_long), ("right", c_long), ("bottom", c_long)]
+
+        class MONITORINFO(Structure):
+            _fields_ = [("cbSize", c_ulong), ("rcMonitor", RECT), ("rcWork", RECT), ("dwFlags", c_ulong)]
+
+        user32 = ctypes.windll.user32
+
+        pt = POINT()
+        if not user32.GetCursorPos(byref(pt)):
+            return 0, 0
+
+        MONITOR_DEFAULTTONEAREST = 2
+        hmon = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        if not user32.GetMonitorInfoW(hmon, byref(mi)):
+            return 0, 0
+
+        return int(mi.rcWork.left), int(mi.rcWork.top)
+    except Exception:
+        return 0, 0
+
+
+# NEW: load/save helpers for bug reports & contributions
+def load_bug_reports():
+    return load_json(BUGS_FILE, [])
+
+def save_bug_reports(reports):
+    if not isinstance(reports, list):
+        reports = []
+    save_json(BUGS_FILE, reports)
+
+def load_contributions():
+    return load_json(CONTRIB_FILE, [])
+
+def save_contributions(contribs):
+    if not isinstance(contribs, list):
+        contribs = []
+    save_json(CONTRIB_FILE, contribs)
+
+
 # ------------------------ Base Page ------------------------
 
 class BasePage(ctk.CTkFrame):
@@ -206,6 +267,19 @@ class BasePage(ctk.CTkFrame):
 
     def refresh_language(self):
         pass
+
+    # NEW: default focus helper - pages may override to focus a useful widget
+    def focus_first(self):
+        try:
+            # attempt to focus the first focusable child widget
+            for w in self.winfo_children():
+                try:
+                    w.focus_set()
+                    return
+                except Exception:
+                    continue
+        except Exception:
+            pass
 
 
 # ------------------------ HRT Log Page ------------------------
@@ -626,6 +700,16 @@ class HRTLogPage(BasePage):
         except Exception:
             pass
 
+    # NEW: focus date entry when page shown for quick data entry
+    def focus_first(self):
+        try:
+            if hasattr(self, "date_entry"):
+                self.date_entry.focus_set()
+                return
+        except Exception:
+            pass
+        super().focus_first()
+
 
 # ------------------------ History Page ------------------------
 
@@ -874,6 +958,15 @@ class HistoryPage(BasePage):
         except Exception:
             pass
 
+    def focus_first(self):
+        try:
+            if hasattr(self, "search_entry"):
+                self.search_entry.focus_set()
+                return
+        except Exception:
+            pass
+        super().focus_first()
+
 
 # ------------------------ Resources Page ------------------------
 
@@ -1046,6 +1139,16 @@ class ResourcesPage(BasePage):
             webbrowser.open(link)
         except Exception as e:
             messagebox.showerror("Open failed", f"Could not open link:\n{e}")
+
+    def focus_first(self):
+        try:
+            # focus the title entry for quick resource creation/edit
+            if hasattr(self, "title_entry"):
+                self.title_entry.focus_set()
+                return
+        except Exception:
+            pass
+        super().focus_first()
 
 
 # ------------------------ Settings Page ------------------------
@@ -1238,7 +1341,7 @@ class SettingsPage(BasePage):
                 except Exception:
                     pass
             try:
-                self.controller.geometry(self.controller.settings.get("window_size", "1400x800"))
+                self.controller.set_window_geometry_top_left()
             except Exception:
                 pass
         except Exception:
@@ -1504,6 +1607,15 @@ class SettingsPage(BasePage):
             pass
         messagebox.showinfo("Reset", "Settings restored to defaults.")
 
+    def focus_first(self):
+        try:
+            if hasattr(self, "toggle"):
+                self.toggle.focus_set()
+                return
+        except Exception:
+            pass
+        super().focus_first()
+
 
 # ------------------------ Help Page ------------------------
 
@@ -1615,7 +1727,7 @@ class HelpPage(BasePage):
             "- Appearance (System / Light / Dark):\n"
             "  • Controls the overall brightness mode of the app.\n"
             "  • 'System' follows your OS preference when supported.\n"
-            "- Color theme (blue / green / dark-blue):\n"
+            "- Color theme (blue / green / dark-blue)Note-can be buged if that happens relaunch and the color theme you selected will be applied:\n"
             "  • Controls the accent colors for buttons and widgets.\n"
             "  • Changes are applied app‑wide.\n\n"
             "Custom lists:\n"
@@ -1692,6 +1804,17 @@ class HelpPage(BasePage):
             "- Use custom regimens for common patterns (e.g. 'Evening oral estradiol' or 'Weekly injection').\n"
             "- Use tags on Resources to quickly group clinics, guides, community spaces, and legal help.\n"
             "- Adjust the notes font size to what feels comfortable for extended journaling.\n"
+            "\nKeyboard shortcuts\n"
+            "------------------\n"
+            "- Ctrl+1: HRT Log\n"
+            "- Ctrl+2: History\n"
+            "- Ctrl+3: Resources\n"
+            "- Ctrl+4: Settings\n"
+            "- Ctrl+5: Help\n"
+            "- Ctrl+6: Report a Bug\n"
+            "- Ctrl+7: Contribute\n"
+            "- Left / Right arrow: cycle previous / next page\n"
+            "- Ctrl+S: context-aware quick save (saves entry, resource, settings, bug report or plan depending on page)\n\n"
         )
 
         self.text_box = ctk.CTkTextbox(self, wrap="word", width=800, height=500)
@@ -1701,6 +1824,197 @@ class HelpPage(BasePage):
 
     def refresh_language(self):
         pass
+
+
+# REPLACEMENT: simplified Bug report page with a reusable template and actions
+class BugReportPage(BasePage):
+    def __init__(self, master, controller):
+        super().__init__(master, controller)
+        ctk.CTkLabel(self, text="Report a Bug", font=("Arial", 20)).pack(pady=12)
+
+        ctk.CTkLabel(self, text="Short summary (one line):").pack(anchor="w", padx=12)
+        self.summary_entry = ctk.CTkEntry(self)
+        self.summary_entry.pack(fill="x", padx=12, pady=(0, 8))
+
+        ctk.CTkLabel(self, text="Bug report template (edit before sending):").pack(anchor="w", padx=12)
+        self.template_box = ctk.CTkTextbox(self, height=220)
+        self.template_box.pack(fill="both", expand=False, padx=12, pady=(0, 8))
+
+        # action buttons
+        btn_row = ctk.CTkFrame(self)
+        btn_row.pack(fill="x", padx=12, pady=(6, 12))
+        ctk.CTkButton(btn_row, text="Copy Template", width=120, command=self.copy_to_clipboard).pack(side="left")
+        ctk.CTkButton(btn_row, text="Open in Gmail", width=120, command=self.open_in_gmail).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(btn_row, text="Save Locally", width=120, command=self.save_locally).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(btn_row, text="Clear", width=80, command=self._clear).pack(side="right")
+
+        ctk.CTkLabel(self, text="Tip: edit the template, then Copy or Open in Gmail and add your recipient.").pack(padx=12, anchor="w")
+
+        # initialize template content
+        self._reset_template()
+
+    def _build_template(self, summary=""):
+        env = (
+            f"Platform: {platform.platform()}\n"
+            f"Python: {platform.python_version()}\n"
+            f"App window size: {self.controller.settings.get('window_size', '')}\n"
+        )
+        template = (
+            f"Summary: {summary}\n\n"
+            "Steps to reproduce:\n1. \n2. \n3. \n\n"
+            "Expected behavior:\n\n"
+            "Actual behavior:\n\n"
+            "Relevant logs / screenshots (describe attachments):\n\n"
+            "Environment:\n"
+            f"{env}\n"
+            "Additional notes:\n"
+        )
+        return template
+
+    def _reset_template(self):
+        try:
+            summary = self.summary_entry.get().strip()
+            t = self._build_template(summary)
+            self.template_box.delete("1.0", "end")
+            self.template_box.insert("1.0", t)
+        except Exception:
+            pass
+
+    def copy_to_clipboard(self):
+        try:
+            text = self.template_box.get("1.0", "end").strip()
+            if not text:
+                messagebox.showinfo("Empty", "Template is empty.")
+                return
+            # copy to clipboard
+            try:
+                self.clipboard_clear()
+                self.clipboard_append(text)
+                self.controller.show_status("Template copied to clipboard.")
+                messagebox.showinfo("Copied", "Template copied to clipboard. Paste it into an email.")
+            except Exception:
+                messagebox.showinfo("Copied", "Could not access clipboard; template is available for manual copy.")
+        except Exception as e:
+            messagebox.showerror("Copy failed", str(e))
+
+    def open_in_gmail(self):
+        try:
+            summary = self.summary_entry.get().strip() or "HRT Tracker bug report"
+            body = self.template_box.get("1.0", "end").strip()
+            if not body:
+                body = self._build_template(summary)
+            subj = f"Bug report: {summary}"
+            # Gmail compose URL (recipient left empty so user can add email later)
+            url = f"https://mail.google.com/mail/?view=cm&fs=1&su={quote(subj)}&body={quote(body)}"
+            webbrowser.open(url)
+            self.controller.show_status("Opened Gmail compose (add recipient and send).")
+        except Exception as e:
+            messagebox.showerror("Open failed", f"Could not open Gmail compose:\n{e}")
+
+    def save_locally(self):
+        try:
+            summary = self.summary_entry.get().strip()
+            details = self.template_box.get("1.0", "end").strip()
+            if not summary and not details:
+                messagebox.showinfo("Empty", "Please enter a summary or edit the template before saving.")
+                return
+            report = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "summary": summary,
+                "details": details,
+                "platform": platform.platform(),
+                "python_version": platform.python_version(),
+                "app_window_size": self.controller.settings.get("window_size", "")
+            }
+            reports = load_bug_reports()
+            reports.append(report)
+            save_bug_reports(reports)
+            messagebox.showinfo("Saved", "Bug report saved locally.")
+            try:
+                self.controller.show_status("Bug report saved locally.")
+            except Exception:
+                pass
+        except Exception as e:
+            messagebox.showerror("Save failed", f"Could not save report:\n{e}")
+
+    def _clear(self):
+        try:
+            self.summary_entry.delete(0, "end")
+            self._reset_template()
+        except Exception:
+            pass
+
+    def focus_first(self):
+        try:
+            if hasattr(self, "summary_entry"):
+                self.summary_entry.focus_set()
+                return
+        except Exception:
+            pass
+        super().focus_first()
+
+
+# NEW: Contribution page (guidelines + save a local plan)
+class ContributionPage(BasePage):
+    def __init__(self, master, controller):
+        super().__init__(master, controller)
+        ctk.CTkLabel(self, text="Contribute / Get Involved", font=("Arial", 20)).pack(pady=10)
+        info = (
+            "Thank you for wanting to contribute. Typical ways to help:\n"
+            "- Report reproducible bugs (use the 'Report a Bug' page).\n"
+            "- Suggest improvements, docs, or translations.\n"
+            "- Provide example data (sanitized) or workflows.\n\n"
+            "If you plan to contribute code or documentation, summarize your idea below and save a contribution plan locally."
+        )
+        ctk.CTkLabel(self, text=info, justify="left").pack(padx=12, anchor="w")
+
+        ctk.CTkLabel(self, text="Your contribution plan / notes:").pack(anchor="w", padx=12, pady=(6,0))
+        self.plan_box = ctk.CTkTextbox(self, height=220)
+        self.plan_box.pack(fill="both", expand=False, padx=12, pady=(0,6))
+
+        row = ctk.CTkFrame(self)
+        row.pack(fill="x", padx=12, pady=(6,12))
+        ctk.CTkButton(row, text="Save Plan", width=120, command=self.save_plan).pack(side="left")
+        ctk.CTkButton(row, text="Open GitHub", width=120, command=self.open_github).pack(side="left", padx=(6,0))
+
+        self.refresh_language()
+
+    def save_plan(self):
+        text = self.plan_box.get("1.0", "end").strip()
+        if not text:
+            messagebox.showinfo("Empty", "Enter a short plan or notes before saving.")
+            return
+        items = load_contributions()
+        items.append({
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "plan": text
+        })
+        save_contributions(items)
+        messagebox.showinfo("Saved", f"Contribution plan saved locally to:\n{CONTRIB_FILE}")
+        try:
+            self.controller.show_status("Contribution plan saved.")
+        except Exception:
+            pass
+        self.plan_box.delete("1.0", "end")
+
+    def open_github(self):
+        # open a generic GitHub homepage as placeholder; users can navigate to the project's repo
+        try:
+            webbrowser.open("https://github.com/")
+        except Exception as e:
+            messagebox.showerror("Open failed", str(e))
+
+    def refresh_language(self):
+        pass
+
+    def focus_first(self):
+        try:
+            if hasattr(self, "plan_box"):
+                self.plan_box.focus_set()
+                return
+        except Exception:
+            pass
+        super().focus_first()
 
 
 # ------------------------ Main App ------------------------
@@ -1720,10 +2034,14 @@ class HRTTrackerApp(ctk.CTk):
         except Exception:
             pass
 
+        # apply geometry snapped to top-left of current screen (falls back to 0,0)
         try:
-            self.geometry(self.settings.get("window_size", "1400x800"))
+            self.set_window_geometry_top_left()
         except Exception:
-            self.geometry("1400x800")
+            try:
+                self.geometry(self.settings.get("window_size", "1400x800"))
+            except Exception:
+                self.geometry("1400x800")
 
         self.sidebar = ctk.CTkFrame(self, width=200)
         self.sidebar.pack(side="left", fill="y")
@@ -1741,46 +2059,203 @@ class HRTTrackerApp(ctk.CTk):
         status_bar.pack(side="bottom", fill="x")
 
         self.pages = {}
+        # NEW: track order of pages for left/right cycling and numeric shortcuts
+        self.page_order = []
 
+        # register pages (kept same order as before)
         self.add_page("HRT Log", HRTLogPage)
         self.add_page("History", HistoryPage)
         self.add_page("Resources", ResourcesPage)
         self.add_page("Settings", SettingsPage)
         self.add_page("Help", HelpPage)
 
+        # NEW: register the new pages in the sidebar
+        self.add_page("Report a Bug", BugReportPage)
+        self.add_page("Contribute", ContributionPage)
+
+        # NEW: bind keyboard shortcuts and on-close handler (safe)
+        try:
+            self._bind_shortcuts()
+        except Exception:
+            pass
+        try:
+            self.protocol("WM_DELETE_WINDOW", self._on_close)
+        except Exception:
+            pass
+
         self.show_page("HRT Log")
 
+    # updated add_page with safety and ordering
     def add_page(self, name, page_class):
-        page = page_class(self.container, self)
+        try:
+            page = page_class(self.container, self)
+        except Exception as e:
+            # create a minimal fallback page to avoid crashing the sidebar creation
+            fallback = ctk.CTkFrame(self.container)
+            lbl = ctk.CTkLabel(fallback, text=f"Failed to load page: {name}\n{e}", fg_color="red")
+            lbl.pack(fill="both", expand=True, padx=12, pady=12)
+            page = fallback
         page.place(relwidth=1, relheight=1)
         self.pages[name] = page
+        self.page_order.append(name)
 
         btn = ctk.CTkButton(self.sidebar, text=name, command=lambda n=name: self.show_page(n))
         btn.pack(pady=5, fill="x")
 
     def show_page(self, name):
-        self.pages[name].show()
+        # safe show
         try:
-            self.show_status(f"Viewing {name}")
+            p = self.pages.get(name)
+            if not p:
+                return
+            p.show()
+            # focus first useful widget for keyboard traversal
+            try:
+                if hasattr(p, "focus_first"):
+                    p.focus_first()
+            except Exception:
+                pass
+            try:
+                self.show_status(f"Viewing {name}")
+            except Exception:
+                pass
         except Exception:
             pass
 
-    def refresh_all_pages(self):
-        for page in self.pages.values():
+    # NEW: helper to perform context-aware save on Ctrl+S
+    def _do_quick_save(self):
+        try:
+            current = None
+            # find visible page name
+            for name, page in self.pages.items():
+                # visible if it's on top of the container
+                if str(page) and page.winfo_ismapped():
+                    current = name
+                    break
+            if current is None:
+                return
+            if current == "HRT Log":
+                try:
+                    self.pages[current].save_entry()
+                    return
+                except Exception:
+                    pass
+            if current == "Resources":
+                try:
+                    self.pages[current].save_current()
+                    return
+                except Exception:
+                    pass
+            if current == "Settings":
+                try:
+                    self.pages[current].apply_and_save()
+                    return
+                except Exception:
+                    pass
+            if current == "Report a Bug":
+                try:
+                    self.pages[current].submit_report()
+                    return
+                except Exception:
+                    pass
+            if current == "Contribute":
+                try:
+                    self.pages[current].save_plan()
+                    return
+                except Exception:
+                    pass
+            # fallback: save settings as a safe no-op
             try:
-                if hasattr(page, "refresh_language"):
-                    page.refresh_language()
+                save_settings(self.settings)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    # NEW: navigate to next/previous page
+    def _cycle_page(self, delta):
+        try:
+            if not self.page_order:
+                return
+            # find current page name by visible mapping; fall back to index 0
+            current = None
+            for i, name in enumerate(self.page_order):
+                p = self.pages.get(name)
+                if p and p.winfo_ismapped():
+                    current = i
+                    break
+            if current is None:
+                current = 0
+            new_index = (current + delta) % len(self.page_order)
+            self.show_page(self.page_order[new_index])
+        except Exception:
+            pass
+
+    # NEW: bind keyboard shortcuts
+    def _bind_shortcuts(self):
+        try:
+            # numeric shortcuts Ctrl+1..7
+            def bind_num(n, page_name):
+                try:
+                    self.bind_all(f"<Control-Key-{n}>", lambda e, nm=page_name: self.show_page(nm))
+                except Exception:
+                    pass
+
+            mappings = {
+                "1": "HRT Log",
+                "2": "History",
+                "3": "Resources",
+                "4": "Settings",
+                "5": "Help",
+                "6": "Report a Bug",
+                "7": "Contribute"
+            }
+            for k, v in mappings.items():
+                bind_num(k, v)
+
+            # cycle next/previous with arrow keys
+            self.bind_all("<Right>", lambda e: self._cycle_page(1))
+            self.bind_all("<Left>", lambda e: self._cycle_page(-1))
+
+            # quick save Ctrl+S
+            self.bind_all("<Control-s>", lambda e: self._do_quick_save())
+
+            # helpful focus: Ctrl+F focuses history search if available
+            self.bind_all("<Control-f>", lambda e: self._focus_history_search())
+
+        except Exception:
+            pass
+
+    def _focus_history_search(self):
+        try:
+            page = self.pages.get("History")
+            if page and hasattr(page, "search_entry"):
+                page.search_entry.focus_set()
+        except Exception:
+            pass
+
+    # NEW: on-close handler persist settings and exit cleanly
+    def _on_close(self):
+        try:
+            save_settings(self.settings)
+        except Exception:
+            pass
+        try:
+            self.destroy()
+        except Exception:
+            try:
+                self.quit()
             except Exception:
                 pass
 
     def apply_theme(self, appearance=None, color_theme=None):
         try:
-            if appearance:
+            if (appearance):
                 try:
                     ctk.set_appearance_mode(appearance)
                 except Exception:
                     pass
-            if color_theme:
+            if (color_theme):
                 try:
                     ctk.set_default_color_theme(color_theme)
                 except Exception:
@@ -1809,6 +2284,31 @@ class HRTTrackerApp(ctk.CTk):
         except Exception:
             pass
 
+    def _compute_top_left_geometry(self, size_str):
+        """
+        Build geometry string "<w>x<h>+left+top" where left/top are monitor work-area top-left
+        for the monitor nearest the cursor. Falls back to +0+0.
+        """
+        try:
+            parts = size_str.split("x", 1)
+            w = int(parts[0]) if parts and parts[0].isdigit() else 1400
+            h = int(parts[1]) if len(parts) > 1 and parts[1].split("+",1)[0].isdigit() else 800
+        except Exception:
+            w, h = 1400, 800
+        left, top = _get_monitor_top_left_for_pointer()
+        return f"{w}x{h}+{left}+{top}"
+
+    def set_window_geometry_top_left(self):
+        geom = self._compute_top_left_geometry(self.settings.get("window_size", "1400x800"))
+        try:
+            self.geometry(geom)
+        except Exception:
+            # fallback to plain size if positional geometry fails
+            try:
+                self.geometry(self.settings.get("window_size", "1400x800"))
+            except Exception:
+                self.geometry("1400x800")
+
     def reload_settings(self):
         try:
             self.settings = load_settings()
@@ -1824,7 +2324,8 @@ class HRTTrackerApp(ctk.CTk):
             pass
 
         try:
-            self.geometry(self.settings.get("window_size", "1400x800"))
+            # reapply snapped-to-monitor geometry
+            self.set_window_geometry_top_left()
         except Exception:
             pass
 
@@ -1838,6 +2339,14 @@ class HRTTrackerApp(ctk.CTk):
             self.refresh_all_pages()
         except Exception:
             pass
+
+    def refresh_all_pages(self):
+        for page in self.pages.values():
+            try:
+                if hasattr(page, "refresh_language"):
+                    page.refresh_language()
+            except Exception:
+                pass
 
     def show_status(self, text, duration_ms=3000):
         try:

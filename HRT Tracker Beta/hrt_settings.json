@@ -40,14 +40,14 @@
     "other"
   ],
   "appearance": "System",
-  "color_theme": "dark-blue",
+  "color_theme": "green",
   "date_format": "%Y-%m-%d",
   "time_format": "%H:%M",
   "show_seconds": true,
   "confirm_actions": true,
   "backup_on_save": false,
-  "window_size": "1100x700",
+  "window_size": "1400x800",
   "default_unit": "",
   "default_route": "",
-  "note_font_size": 12
+  "note_font_size": 31
 }
