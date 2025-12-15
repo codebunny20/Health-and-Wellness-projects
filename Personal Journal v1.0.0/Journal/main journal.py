@@ -5,8 +5,33 @@ import datetime
 import customtkinter as ctk
 from tkinter import messagebox
 import json  # for settings persistence
+import sys
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Replace the previous BASE_DIR/JOURNAL_DIR/SETTINGS_PATH logic with a per-user app data folder
+APP_NAME = "PersonalJournal"
+
+def get_user_data_dir():
+    """Return a stable per-user application data directory.
+    When bundled as an executable (e.g. PyInstaller), use a platform-appropriate
+    user data location so files persist across updates. During development,
+    use the script folder for convenience.
+    """
+    if getattr(sys, "frozen", False):
+        # running as a bundled app/exe
+        if os.name == "nt":
+            base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or os.path.expanduser("~")
+        elif sys.platform == "darwin":
+            base = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+        else:
+            base = os.getenv("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+        return os.path.join(base, APP_NAME)
+    # not frozen -> keep using the script folder (easier for development)
+    return os.path.dirname(os.path.abspath(__file__))
+
+BASE_DIR = get_user_data_dir()
+# ensure the base app dir exists (safe both in development and after packaging)
+os.makedirs(BASE_DIR, exist_ok=True)
+
 JOURNAL_DIR = os.path.join(BASE_DIR, "journals")
 SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
 
