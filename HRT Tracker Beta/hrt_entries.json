@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2025-12-15 06:22",
+    "regimen": "Estradiol (oral)",
+    "route": "",
+    "dose": "",
+    "mood": "Neutral",
+    "symptoms": "",
+    "notes": "",
+    "medications": [
+      {
+        "name": "Estradiol (oral)",
+        "dose": "8",
+        "unit": "",
+        "route": "Oral",
+        "time": "06:22"
+      }
+    ]
+  },
+  {
+    "timestamp": "2025-12-15 06:59",
+    "regimen": "Estradiol (oral)",
+    "route": "",
+    "dose": "",
+    "mood": "Neutral",
+    "symptoms": "",
+    "notes": "",
+    "medications": [
+      {
+        "name": "Estradiol (oral)",
+        "dose": "",
+        "unit": "mg",
+        "route": "Oral",
+        "time": "07:02"
+      }
+    ]
+  }
+]
