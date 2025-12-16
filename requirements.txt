@@ -16,3 +16,4 @@ PyJWT>=2.8
 bcrypt>=4.0
 pyinstaller
 py2exe
+
