@@ -77,6 +77,9 @@ SETTINGS_FILE = str(APP_DATA_DIR / "hrt_settings.json")
 BUGS_FILE = str(APP_DATA_DIR / "hrt_bug_reports.json")
 CONTRIB_FILE = str(APP_DATA_DIR / "hrt_contributions.json")
 
+# (optional) small helper for display in Help text
+APP_DATA_DIR_DISPLAY = str(APP_DATA_DIR)
+
 # ------------------------ Utilities ------------------------
 
 def _safe_int(value, default, min_val=None, max_val=None):
@@ -187,7 +190,6 @@ def load_settings():
         "routes": DEFAULT_ROUTE_OPTIONS.copy(),
         "units": DEFAULT_DOSE_UNITS.copy(),
         "appearance": "System",
-        "color_theme": "blue",
         "date_format": "%Y-%m-%d",
         "time_format": "%H:%M",
         "show_seconds": True,
@@ -203,7 +205,6 @@ def load_settings():
         s = {}
     s.setdefault("inclusive_language", True)
     s.setdefault("appearance", "System")
-    s.setdefault("color_theme", "blue")
     s.setdefault("date_format", "%Y-%m-%d")
     s.setdefault("time_format", "%H:%M")
     s.setdefault("show_seconds", True)
@@ -224,8 +225,6 @@ def load_settings():
 
     if s["appearance"] not in ("System", "Light", "Dark"):
         s["appearance"] = "System"
-    if s["color_theme"] not in ("blue", "green", "dark-blue"):
-        s["color_theme"] = "blue"
 
     try:
         _ = datetime.now().strftime(s["date_format"])
@@ -1397,7 +1396,6 @@ class SettingsPage(BasePage):
     DATE_FORMATS = [("YYYY-MM-DD", "%Y-%m-%d"), ("MM/DD/YYYY", "%m/%d/%Y"), ("DD/MM/YYYY", "%d/%m/%Y")]
     TIME_FORMATS = [("24-hour HH:MM", "%H:%M"), ("12-hour hh:MM AM/PM", "%I:%M %p")]
     APPEARANCE_OPTIONS = ["System", "Light", "Dark"]
-    COLOR_THEMES = ["blue", "green", "dark-blue"]
 
     def __init__(self, master, controller):
         super().__init__(master, controller)
@@ -1427,14 +1425,6 @@ class SettingsPage(BasePage):
         )
         self.appearance_menu.set(self.controller.settings.get("appearance", "System"))
         self.appearance_menu.pack(side="left", padx=(0, 12))
-        ctk.CTkLabel(appearance_row, text="Color theme:").pack(side="left", padx=(6, 6))
-        self.theme_menu = ctk.CTkOptionMenu(
-            appearance_row,
-            values=self.COLOR_THEMES,
-            command=self._on_change_theme
-        )
-        self.theme_menu.set(self.controller.settings.get("color_theme", "blue"))
-        self.theme_menu.pack(side="left")
 
         self.lists_scroll = ctk.CTkScrollableFrame(self)
         self.lists_scroll.pack(fill="both", expand=True, padx=12, pady=6)
@@ -1568,16 +1558,11 @@ class SettingsPage(BasePage):
     def _apply_appearance_and_theme(self):
         try:
             app_appearance = self.controller.settings.get("appearance", "System")
-            color_theme = self.controller.settings.get("color_theme", "blue")
             try:
-                self.controller.apply_theme(app_appearance, color_theme)
+                self.controller.apply_theme(app_appearance, None)
             except Exception:
                 try:
                     ctk.set_appearance_mode(app_appearance)
-                except Exception:
-                    pass
-                try:
-                    ctk.set_default_color_theme(color_theme)
                 except Exception:
                     pass
             try:
@@ -1594,24 +1579,10 @@ class SettingsPage(BasePage):
             self.controller.reload_settings()
         except Exception:
             try:
-                self.controller.apply_theme(v, self.controller.settings.get("color_theme", "blue"))
+                self.controller.apply_theme(v, None)
             except Exception:
                 try:
                     ctk.set_appearance_mode(v)
-                except Exception:
-                    pass
-
-    def _on_change_theme(self, v):
-        self.controller.settings["color_theme"] = v
-        save_settings(self.controller.settings)
-        try:
-            self.controller.reload_settings()
-        except Exception:
-            try:
-                self.controller.apply_theme(self.controller.settings.get("appearance", "System"), v)
-            except Exception:
-                try:
-                    ctk.set_default_color_theme(v)
                 except Exception:
                     pass
 
@@ -1816,7 +1787,6 @@ class SettingsPage(BasePage):
             "routes": DEFAULT_ROUTE_OPTIONS.copy(),
             "units": DEFAULT_DOSE_UNITS.copy(),
             "appearance": "System",
-            "color_theme": "blue",
             "date_format": "%Y-%m-%d",
             "time_format": "%H:%M",
             "show_seconds": True,
@@ -1836,7 +1806,6 @@ class SettingsPage(BasePage):
         self.window_entry.insert(0, "1400x800")
         self.note_font_var.set(12)
         self.appearance_menu.set("System")
-        self.theme_menu.set("blue")
         self.date_menu.set(self._find_format_label("%Y-%m-%d", self.DATE_FORMATS))
         self.time_menu.set(self._find_format_label("%H:%M", self.TIME_FORMATS))
         self.refresh_settings_lists()
@@ -1871,7 +1840,8 @@ class HelpPage(BasePage):
             "========\n"
             "HRT Tracker is a personal logging tool for hormone‑related regimens, symptoms, "
             "and resources. Nothing is sent anywhere: all data is stored as JSON files on "
-            "your own computer in the same folder as this program.\n\n"
+            "your own computer in a per‑user app data folder.\n\n"
+            f"Folder location:\n{APP_DATA_DIR_DISPLAY}\n\n"
             "This help page explains each part of the app in detail and how it all fits together.\n\n"
             "Data Files\n"
             "----------\n"
@@ -1966,10 +1936,7 @@ class HelpPage(BasePage):
             "Appearance & theme:\n"
             "- Appearance (System / Light / Dark):\n"
             "  • Controls the overall brightness mode of the app.\n"
-            "  • 'System' follows your OS preference when supported.\n"
-            "- Color theme (blue / green / dark-blue)Note-can be buged if that happens relaunch and the color theme you selected will be applied:\n"
-            "  • Controls the accent colors for buttons and widgets.\n"
-            "  • Changes are applied app‑wide.\n\n"
+            "  • 'System' follows your OS preference when supported.\n\n"
             "Custom lists:\n"
             "- Regimens / Meds:\n"
             "  • Items appear in the 'Choose med…' dropdown on the HRT Log page.\n"
@@ -2178,6 +2145,11 @@ class BugReportPage(BasePage):
         except Exception as e:
             messagebox.showerror("Save failed", f"Could not save report:\n{e}")
 
+    # nice-to-have: explicit method used by Ctrl+S for clarity
+    def submit_report(self):
+        """Alias used by Ctrl+S quick-save to store the bug report locally."""
+        self.save_locally()
+
     def _clear(self):
         try:
             self.summary_entry.delete(0, "end")
@@ -2270,7 +2242,7 @@ class HRTTrackerApp(ctk.CTk):
         try:
             self.apply_theme(
                 self.settings.get("appearance", "System"),
-                self.settings.get("color_theme", "blue")
+                None
             )
         except Exception:
             pass
@@ -2369,7 +2341,6 @@ class HRTTrackerApp(ctk.CTk):
             current = None
             # find visible page name
             for name, page in self.pages.items():
-                # visible if it's on top of the container
                 if str(page) and page.winfo_ismapped():
                     current = name
                     break
@@ -2395,6 +2366,7 @@ class HRTTrackerApp(ctk.CTk):
                     pass
             if current == "Report a Bug":
                 try:
+                    # now this method exists; prefer consistent naming
                     self.pages[current].submit_report()
                     return
                 except Exception:
@@ -2496,11 +2468,6 @@ class HRTTrackerApp(ctk.CTk):
                     ctk.set_appearance_mode(appearance)
                 except Exception:
                     pass
-            if (color_theme):
-                try:
-                    ctk.set_default_color_theme(color_theme)
-                except Exception:
-                    pass
         except Exception:
             pass
 
@@ -2559,7 +2526,7 @@ class HRTTrackerApp(ctk.CTk):
         try:
             self.apply_theme(
                 self.settings.get("appearance", "System"),
-                self.settings.get("color_theme", "blue")
+                None
             )
         except Exception:
             pass
@@ -2615,4 +2582,5 @@ class HRTTrackerApp(ctk.CTk):
 if __name__ == "__main__":
     app = HRTTrackerApp()
     app.mainloop()
+
 
